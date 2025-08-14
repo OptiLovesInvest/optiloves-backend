@@ -272,5 +272,89 @@ def ai_chat():
 # -----------------------------------------------------------------------------
 # Local dev entrypoint (Render uses Gunicorn via Procfile)
 # -----------------------------------------------------------------------------
+
+# ---- Stripe Checkout (test mode) ----
+import stripe
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://example.com")  # set on Render
+
+@app.post("/checkout/create")
+def checkout_create():
+    data = request.get_json(force=True) or {}
+    pid = (data.get("property_id") or "").strip()
+    qty = max(1, int(data.get("quantity") or 1))
+
+    prop = next((p for p in properties if p["id"] == pid), None)
+    if not prop:
+        return {"error": "Invalid property id"}, 400
+
+    available = int(prop.get("availableTokens", 0))
+    if qty > available:
+        return {"error": f"Only {available} token(s) available"}, 400
+
+    unit_price = STATE["token_price"]          # $ per token
+    unit_amount = int(unit_price * 100)        # cents
+
+    if not stripe.api_key:
+        return {"error": "Stripe not configured"}, 500
+    if not FRONTEND_URL or "http" not in FRONTEND_URL:
+        return {"error": "FRONTEND_URL not set"}, 500
+
+    try:
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {"name": f"{prop.get('title')} — {pid} (token)"},
+                    "unit_amount": unit_amount,
+                },
+                "quantity": qty,
+            }],
+            success_url=f"{FRONTEND_URL}/ai?paid=1&session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{FRONTEND_URL}/ai?canceled=1",
+            metadata={"property_id": pid, "quantity": str(qty)},
+            client_reference_id=pid,
+        )
+        return {"checkout_url": session.url}
+    except Exception as e:
+        return {"error": "stripe_create_failed", "detail": str(e)}, 502
+
+WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+@app.post("/stripe/webhook")
+def stripe_webhook():
+    payload = request.data
+    sig = request.headers.get("Stripe-Signature", "")
+    if not WEBHOOK_SECRET:
+        return {"error": "webhook not configured"}, 500
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig, WEBHOOK_SECRET)
+    except Exception as e:
+        return {"error": "invalid_signature", "detail": str(e)}, 400
+
+    # Handle successful payment
+    if event.get("type") == "checkout.session.completed":
+        sess = event["data"]["object"]
+        meta = sess.get("metadata") or {}
+        pid = (meta.get("property_id") or "").strip()
+        qty = int(meta.get("quantity") or "1")
+
+        prop = next((p for p in properties if p["id"] == pid), None)
+        if prop:
+            available = int(prop.get("availableTokens", 0))
+            if qty <= available:
+                unit_price = STATE["token_price"]
+                total = unit_price * qty
+                order = {"id": pid, "quantity": qty, "total": total, "ts": datetime.utcnow().isoformat() + "Z"}
+                orders.append(order)
+                prop["availableTokens"] = available - qty
+                with open(ORDERS_FILE, "w", encoding="utf-8") as f: json.dump(orders, f)
+                with open(PROPS_FILE, "w", encoding="utf-8") as f: json.dump(properties, f)
+
+    return {"ok": True}
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
