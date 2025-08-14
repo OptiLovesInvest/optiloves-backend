@@ -1,4 +1,4 @@
-# app.py — Optiloves backend (clean, single app + CORS + AI agent)
+# app.py — Optiloves backend (single Flask app, CORS, endpoints, AI propose-only)
 
 import os
 import json
@@ -6,9 +6,10 @@ from uuid import uuid4
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from openai import OpenAI
 
 # -----------------------------------------------------------------------------
-# App + CORS  (keep ONLY this Flask app definition)
+# App + CORS (keep ONLY this Flask app definition)
 # -----------------------------------------------------------------------------
 app = Flask(__name__)
 origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
@@ -18,8 +19,8 @@ CORS(app, resources={r"/*": {"origins": origins}})
 # Simple in-memory state (demo)
 # -----------------------------------------------------------------------------
 STATE = {
-    "token_price": 50,        # USD per token (used by /price and demo /buy)
-    "available_tokens": 4999  # global demo pool for /buy
+    "token_price": 50,        # USD per token (used by /price)
+    "available_tokens": 4999  # global demo pool for /buy (legacy/demo)
 }
 
 # -----------------------------------------------------------------------------
@@ -68,7 +69,7 @@ def get_price():
         "available_tokens": STATE["available_tokens"]
     }
 
-@app.post("/buy")
+@app.post("/buy")  # legacy/demo: uses global STATE pool
 def buy_tokens():
     data = request.get_json(force=True) or {}
     prop_id = data.get("property_id")
@@ -149,7 +150,9 @@ def orders_route():
     if qty > available:
         return {"error": f"Only {available} token(s) available"}, 400
 
-    total = (prop.get("price") or 0) * qty
+    # For consistency with earlier UI: property price is unit price
+    unit_price = prop.get("price") or 0
+    total = unit_price * qty
     order = {"id": pid, "quantity": qty, "total": total, "ts": datetime.utcnow().isoformat() + "Z"}
     orders.append(order)
 
@@ -171,10 +174,8 @@ def clear_orders():
     return {"ok": True}
 
 # -----------------------------------------------------------------------------
-# Minimal AI Agent (lazy init; won’t crash if key missing)
+# AI Agent (propose-only — never auto-buys)
 # -----------------------------------------------------------------------------
-from openai import OpenAI
-
 def get_openai_client():
     key = os.getenv("OPENAI_API_KEY")
     if not key:
@@ -183,18 +184,19 @@ def get_openai_client():
 
 AI_SYSTEM = (
     "You are OptiLoves Assistant. "
-    "Reply ONLY with a compact JSON object describing the action.\n"
-    'Schema: {"action":"list"|"price"|"buy", "property_id":string?, "quantity":number?}\n'
+    "Reply ONLY with a compact JSON object.\n"
+    'Schema: {"action":"list"|"price"|"propose_buy", "property_id":string?, "quantity":number?}\n'
+    "If the user asks to buy, ALWAYS return action=\"propose_buy\" (never execute purchases).\n"
     'Examples:\n'
     '- "What can I buy?" -> {"action":"list"}\n'
     '- "price for kin-001" -> {"action":"price","property_id":"kin-001"}\n'
-    '- "buy 2 of kin-001" -> {"action":"buy","property_id":"kin-001","quantity":2}\n'
+    '- "buy 2 of kin-001" -> {"action":"propose_buy","property_id":"kin-001","quantity":2}\n'
     "Never add text outside JSON."
 )
 
 @app.get("/__env_ok")
 def env_ok():
-    # Quick check: confirms the server can see the key (does NOT leak it)
+    # Quick check (does NOT leak the key)
     return {"openai_key_set": bool(os.getenv("OPENAI_API_KEY"))}
 
 def ai_exec(cmd: dict):
@@ -202,25 +204,36 @@ def ai_exec(cmd: dict):
     if act == "list":
         return {"properties": properties}
     if act == "price":
-        pid = cmd.get("property_id") or ""
-        return {"property_id": pid, "token_price": STATE["token_price"]}
-    if act == "buy":
-        pid = cmd.get("property_id") or ""
+        pid = (cmd.get("property_id") or "").strip()
+        found = next((p for p in properties if p["id"] == pid), None)
+        return {
+            "property_id": pid,
+            "token_price": STATE["token_price"],
+            "property_found": bool(found),
+        }
+    if act == "propose_buy":
+        pid = (cmd.get("property_id") or "").strip()
         qty = max(1, int(cmd.get("quantity") or 1))
         prop = next((p for p in properties if p["id"] == pid), None)
         if not prop:
-            return {"error": "Invalid property id"}
+            return {"ok": False, "error": "Invalid property id"}
         available = int(prop.get("availableTokens", 0))
         if qty > available:
-            return {"error": f"Only {available} token(s) available"}
-        total = (prop.get("price") or 0) * qty
-        order = {"id": pid, "quantity": qty, "total": total, "ts": datetime.utcnow().isoformat()+"Z"}
-        orders.append(order)
-        prop["availableTokens"] = available - qty
-        with open(ORDERS_FILE, "w", encoding="utf-8") as f: json.dump(orders, f)
-        with open(PROPS_FILE, "w", encoding="utf-8") as f: json.dump(properties, f)
-        return {"ok": True, "order": order}
-    return {"error": "Unknown action"}
+            return {"ok": False, "error": f"Only {available} token(s) available", "available": available}
+        unit_price = prop.get("price") or STATE["token_price"]
+        total = unit_price * qty
+        return {
+            "ok": True,
+            "proposal": {
+                "property_id": pid,
+                "quantity": qty,
+                "unit_price": unit_price,
+                "total": total,
+                "available": available,
+                "title": prop.get("title"),
+            },
+        }
+    return {"ok": False, "error": "Unknown action"}
 
 @app.post("/ai/chat")
 def ai_chat():
