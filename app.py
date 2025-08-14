@@ -9,7 +9,7 @@ from flask_cors import CORS
 from openai import OpenAI
 
 # -----------------------------------------------------------------------------
-# App + CORS (keep ONLY this Flask app definition)
+# App + CORS
 # -----------------------------------------------------------------------------
 app = Flask(__name__)
 origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
@@ -26,8 +26,9 @@ STATE = {
 # -----------------------------------------------------------------------------
 # JSON storage for demo persistence
 # -----------------------------------------------------------------------------
-PROPS_FILE  = "properties.json"
-ORDERS_FILE = "orders.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROPS_FILE  = os.path.join(BASE_DIR, "properties.json")
+ORDERS_FILE = os.path.join(BASE_DIR, "orders.json")
 
 default_props = [
     {"id": "kin-001", "title": "Kinshasa — Gombe Apartments", "price": 120000, "availableTokens": 5000},
@@ -182,17 +183,16 @@ def get_openai_client():
         return None
     return OpenAI(api_key=key)
 
-AI_SYSTEM = (
-    "You are OptiLoves Assistant. "
-    "Reply ONLY with a compact JSON object.\n"
-    'Schema: {"action":"list"|"price"|"propose_buy", "property_id":string?, "quantity":number?}\n'
-    "If the user asks to buy, ALWAYS return action=\"propose_buy\" (never execute purchases).\n"
-    'Examples:\n'
-    '- \"What can I buy?\" -> {\"action\":\"list\"}\n'
-    '- \"price for kin-001\" -> {\"action\":\"price\",\"property_id\":\"kin-001\"}\n'
-    '- \"buy 2 of kin-001\" -> {\"action\":\"propose_buy\",\"property_id\":\"kin-001\",\"quantity\":2}\n'
-    "Never add text outside JSON."
-)
+AI_SYSTEM = """You are OptiLoves Assistant.
+Reply ONLY with a compact JSON object.
+Schema: {"action":"list"|"price"|"propose_buy", "property_id":string?, "quantity":number?}
+If the user asks to buy, ALWAYS return action="propose_buy" (never execute purchases).
+Examples:
+- "What can I buy?" -> {"action":"list"}
+- "price for kin-001" -> {"action":"price","property_id":"kin-001"}
+- "buy 2 of kin-001" -> {"action":"propose_buy","property_id":"kin-001","quantity":2}
+Never add text outside JSON.
+"""
 
 @app.get("/__env_ok")
 def env_ok():
@@ -227,5 +227,48 @@ def ai_exec(cmd: dict):
             "proposal": {
                 "property_id": pid,
                 "quantity": qty,
-   
-::contentReference[oaicite:0]{index=0}
+                "unit_price": unit_price,
+                "total": total,
+                "available": available,
+                "title": prop.get("title"),
+            },
+        }
+    return {"ok": False, "error": "Unknown action"}
+
+@app.post("/ai/chat")
+def ai_chat():
+    client = get_openai_client()
+    if client is None:
+        return {"error": "OPENAI_API_KEY not set on server"}, 500
+
+    data = request.get_json(silent=True) or {}
+    user = (data.get("message") or "").strip()
+    if not user:
+        return {"error": "message is required"}, 400
+
+    # Use Chat Completions (simple + stable) and force JSON output
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": AI_SYSTEM},
+                {"role": "user", "content": user},
+            ],
+            response_format={"type": "json_object"},
+        )
+        raw = resp.choices[0].message.content or "{}"
+    except Exception as e:
+        return {"error": "openai_call_failed", "detail": str(e)}, 502
+
+    try:
+        cmd = json.loads(raw)
+    except Exception:
+        return {"error": "AI did not return valid JSON", "raw": raw}, 502
+
+    return {"command": cmd, "result": ai_exec(cmd)}
+
+# -----------------------------------------------------------------------------
+# Local dev entrypoint (Render uses Gunicorn via Procfile)
+# -----------------------------------------------------------------------------
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
