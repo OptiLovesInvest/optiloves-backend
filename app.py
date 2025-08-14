@@ -152,7 +152,9 @@ def orders_route():
         return {"error": f"Only {available} token(s) available"}, 400
 
     # For consistency with earlier UI: property price is unit price
-    unit_price = prop.get("price") or 0
+    # AFTER (token price — correct for per-token purchases)
+    unit_price = STATE["token_price"]
+
     total = unit_price * qty
     order = {"id": pid, "quantity": qty, "total": total, "ts": datetime.utcnow().isoformat() + "Z"}
     orders.append(order)
