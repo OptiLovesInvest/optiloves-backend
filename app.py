@@ -165,8 +165,6 @@ def clear_orders():
 
 
 # -------- Minimal AI Agent (JSON-in / JSON-out) --------
-from openai import OpenAI
-client = OpenAI()  # reads OPENAI_API_KEY
 
 AI_SYSTEM = (
     "You are OptiLoves Assistant. "
@@ -290,6 +288,83 @@ def ai_chat():
 
     return {"command": cmd, "result": ai_exec(cmd)}
 
+# -------- Minimal AI Agent (safe lazy init) --------
+from openai import OpenAI
+
+def get_openai_client():
+    key = os.getenv("OPENAI_API_KEY")
+    if not key:
+        return None
+    return OpenAI(api_key=key)
+
+AI_SYSTEM = (
+    "You are OptiLoves Assistant. "
+    "Reply ONLY with a compact JSON object describing the action.\n"
+    'Schema: {"action":"list"|"price"|"buy", "property_id":string?, "quantity":number?}\n'
+    'Examples:\n'
+    '- "What can I buy?" -> {"action":"list"}\n'
+    '- "price for kin-001" -> {"action":"price","property_id":"kin-001"}\n'
+    '- "buy 2 of kin-001" -> {"action":"buy","property_id":"kin-001","quantity":2}\n'
+    "Never add text outside JSON."
+)
+
+@app.get("/__env_ok")
+def env_ok():
+    # simple checker to confirm server can see the key (does NOT leak it)
+    return {"openai_key_set": bool(os.getenv("OPENAI_API_KEY"))}
+
+def ai_exec(cmd: dict):
+    act = (cmd.get("action") or "").lower()
+    if act == "list":
+        return {"properties": properties}
+    if act == "price":
+        pid = cmd.get("property_id") or ""
+        return {"property_id": pid, "token_price": STATE["token_price"]}
+    if act == "buy":
+        pid = cmd.get("property_id") or ""
+        qty = max(1, int(cmd.get("quantity") or 1))
+        prop = next((p for p in properties if p["id"] == pid), None)
+        if not prop:
+            return {"error": "Invalid property id"}
+        available = int(prop.get("availableTokens", 0))
+        if qty > available:
+            return {"error": f"Only {available} token(s) available"}
+        total = (prop.get("price") or 0) * qty
+        order = {"id": pid, "quantity": qty, "total": total, "ts": datetime.utcnow().isoformat()+"Z"}
+        orders.append(order)
+        prop["availableTokens"] = available - qty
+        with open(ORDERS_FILE, "w", encoding="utf-8") as f: json.dump(orders, f)
+        with open(PROPS_FILE, "w", encoding="utf-8") as f: json.dump(properties, f)
+        return {"ok": True, "order": order}
+    return {"error": "Unknown action"}
+
+@app.post("/ai/chat")
+def ai_chat():
+    client = get_openai_client()
+    if client is None:
+        return {"error": "OPENAI_API_KEY not set on server"}, 500
+
+    data = request.get_json(silent=True) or {}
+    user = (data.get("message") or "").strip()
+    if not user:
+        return {"error": "message is required"}, 400
+
+    r = client.responses.create(
+        model="gpt-4o-mini",
+        input=[
+            {"role": "system", "content": AI_SYSTEM},
+            {"role": "user", "content": user},
+        ],
+        response_format={"type": "json_object"},
+    )
+
+    import json as _json
+    try:
+        cmd = _json.loads(r.output_text)
+    except Exception:
+        return {"error": "AI did not return valid JSON", "raw": r.output_text}, 502
+
+    return {"command": cmd, "result": ai_exec(cmd)}
 
 # ---- Local dev entrypoint ----------------------------------------------------
 if __name__ == "__main__":
