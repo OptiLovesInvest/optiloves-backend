@@ -1,4 +1,4 @@
-# app.py — cleaned up with locked-down CORS at the very top
+# app.py — Optiloves backend (clean, single app + CORS + AI agent)
 
 import os
 import json
@@ -7,32 +7,33 @@ from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-# ---- App + CORS (keep ONLY this app = Flask(...) in the file) ----------------
+# -----------------------------------------------------------------------------
+# App + CORS  (keep ONLY this Flask app definition)
+# -----------------------------------------------------------------------------
 app = Flask(__name__)
-origins = [
-    o.strip()
-    for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
-    if o.strip()
-]
+origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
 CORS(app, resources={r"/*": {"origins": origins}})
 
-# ---- Simple in-memory price/state --------------------------------------------
+# -----------------------------------------------------------------------------
+# Simple in-memory state (demo)
+# -----------------------------------------------------------------------------
 STATE = {
-    "token_price": 50,       # USD per token
-    "available_tokens": 4999 # global demo pool (used by /buy)
+    "token_price": 50,        # USD per token (used by /price and demo /buy)
+    "available_tokens": 4999  # global demo pool for /buy
 }
 
-# ---- Files for demo persistence ----------------------------------------------
+# -----------------------------------------------------------------------------
+# JSON storage for demo persistence
+# -----------------------------------------------------------------------------
 PROPS_FILE  = "properties.json"
 ORDERS_FILE = "orders.json"
 
-# Default properties (used if properties.json doesn't exist yet)
 default_props = [
     {"id": "kin-001", "title": "Kinshasa — Gombe Apartments", "price": 120000, "availableTokens": 5000},
     {"id": "lua-001", "title": "Luanda — Ilha Offices",       "price": 250000, "availableTokens": 3000},
 ]
 
-# Load / init properties
+# Load/init properties
 if os.path.exists(PROPS_FILE):
     with open(PROPS_FILE, "r", encoding="utf-8") as f:
         properties = json.load(f)
@@ -41,22 +42,26 @@ else:
     with open(PROPS_FILE, "w", encoding="utf-8") as f:
         json.dump(properties, f)
 
-# Load / init orders
+# Load/init orders
 if os.path.exists(ORDERS_FILE):
     with open(ORDERS_FILE, "r", encoding="utf-8") as f:
         orders = json.load(f)
 else:
     orders = []
 
-# ---- Health ------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Health
+# -----------------------------------------------------------------------------
 @app.get("/health")
 def health():
     return {"ok": True, "service": "backend", "version": "0.1.0"}
 
-# ---- Price + demo buy/airdrop ------------------------------------------------
+# -----------------------------------------------------------------------------
+# Price + demo buy/airdrop
+# -----------------------------------------------------------------------------
 @app.get("/price")
 def get_price():
-    # Return both keys for compatibility with different frontends
+    # Return both "price" and "token_price" for frontend compatibility
     return {
         "price": STATE["token_price"],
         "token_price": STATE["token_price"],
@@ -101,7 +106,9 @@ def airdrop():
     # Stubbed devnet airdrop response
     return {"ok": True, "wallet": wallet, "network": "devnet", "lamports": 1_000_000_000}
 
-# ---- Properties --------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Properties
+# -----------------------------------------------------------------------------
 @app.get("/properties")
 def list_properties():
     return jsonify(properties)
@@ -113,12 +120,14 @@ def get_property_by_id(property_id):
         return {"error": "Not found"}, 404
     return jsonify(p)
 
-# (Optional convenience if some frontends call /property/:id)
+# Alias if some clients call singular form
 @app.get("/property/<property_id>")
 def get_property_by_id_alias(property_id):
     return get_property_by_id(property_id)
 
-# ---- Orders (property-aware purchase that updates inventory) -----------------
+# -----------------------------------------------------------------------------
+# Orders (property-aware purchases with inventory updates)
+# -----------------------------------------------------------------------------
 @app.route("/orders", methods=["GET", "POST"])
 def orders_route():
     global properties, orders
@@ -153,7 +162,6 @@ def orders_route():
 
     return order, 201
 
-# Quick reset of order list (for local testing)
 @app.post("/orders/clear")
 def clear_orders():
     global orders
@@ -162,133 +170,9 @@ def clear_orders():
         os.remove(ORDERS_FILE)
     return {"ok": True}
 
-
-
-# -------- Minimal AI Agent (JSON-in / JSON-out) --------
-
-AI_SYSTEM = (
-    "You are OptiLoves Assistant. "
-    "Reply ONLY with a compact JSON object describing the action.\n"
-    'Schema: {"action":"list"|"price"|"buy", "property_id":string?, "quantity":number?}\n'
-    'Examples:\n'
-    '- "What can I buy?" -> {"action":"list"}\n'
-    '- "price for kin-001" -> {"action":"price","property_id":"kin-001"}\n'
-    '- "buy 2 of kin-001" -> {"action":"buy","property_id":"kin-001","quantity":2}\n'
-    "Never add text outside JSON."
-)
-
-def ai_exec(cmd: dict):
-    act = (cmd.get("action") or "").lower()
-    if act == "list":
-        return {"properties": properties}
-    if act == "price":
-        pid = cmd.get("property_id") or ""
-        return {"property_id": pid, "token_price": STATE["token_price"]}
-    if act == "buy":
-        pid = cmd.get("property_id") or ""
-        qty = max(1, int(cmd.get("quantity") or 1))
-        prop = next((p for p in properties if p["id"] == pid), None)
-        if not prop:
-            return {"error": "Invalid property id"}
-        available = int(prop.get("availableTokens", 0))
-        if qty > available:
-            return {"error": f"Only {available} token(s) available"}
-        total = (prop.get("price") or 0) * qty
-        order = {"id": pid, "quantity": qty, "total": total, "ts": datetime.utcnow().isoformat()+"Z"}
-        orders.append(order)
-        prop["availableTokens"] = available - qty
-        with open(ORDERS_FILE, "w", encoding="utf-8") as f: json.dump(orders, f)
-        with open(PROPS_FILE, "w", encoding="utf-8") as f: json.dump(properties, f)
-        return {"ok": True, "order": order}
-    return {"error": "Unknown action"}
-
-@app.post("/ai/chat")
-def ai_chat():
-    data = request.get_json(silent=True) or {}
-    user = (data.get("message") or "").strip()
-    if not user:
-        return {"error": "message is required"}, 400
-
-    r = client.responses.create(
-        model="gpt-4o-mini",
-        input=[
-            {"role": "system", "content": AI_SYSTEM},
-            {"role": "user", "content": user},
-        ],
-        response_format={"type": "json_object"},
-    )
-    import json as _json
-    try:
-        cmd = _json.loads(r.output_text)
-    except Exception:
-        return {"error": "AI did not return valid JSON", "raw": r.output_text}, 502
-
-    return {"command": cmd, "result": ai_exec(cmd)}
-
-# -------- Minimal AI Agent (JSON-in / JSON-out) --------
-from openai import OpenAI
-client = OpenAI()  # reads OPENAI_API_KEY
-
-AI_SYSTEM = (
-    "You are OptiLoves Assistant. "
-    "Reply ONLY with a compact JSON object describing the action.\n"
-    'Schema: {"action":"list"|"price"|"buy", "property_id":string?, "quantity":number?}\n'
-    'Examples:\n'
-    '- "What can I buy?" -> {"action":"list"}\n'
-    '- "price for kin-001" -> {"action":"price","property_id":"kin-001"}\n'
-    '- "buy 2 of kin-001" -> {"action":"buy","property_id":"kin-001","quantity":2}\n'
-    "Never add text outside JSON."
-)
-
-def ai_exec(cmd: dict):
-    act = (cmd.get("action") or "").lower()
-    if act == "list":
-        return {"properties": properties}
-    if act == "price":
-        pid = cmd.get("property_id") or ""
-        return {"property_id": pid, "token_price": STATE["token_price"]}
-    if act == "buy":
-        pid = cmd.get("property_id") or ""
-        qty = max(1, int(cmd.get("quantity") or 1))
-        prop = next((p for p in properties if p["id"] == pid), None)
-        if not prop:
-            return {"error": "Invalid property id"}
-        available = int(prop.get("availableTokens", 0))
-        if qty > available:
-            return {"error": f"Only {available} token(s) available"}
-        total = (prop.get("price") or 0) * qty
-        order = {"id": pid, "quantity": qty, "total": total, "ts": datetime.utcnow().isoformat()+"Z"}
-        orders.append(order)
-        prop["availableTokens"] = available - qty
-        with open(ORDERS_FILE, "w", encoding="utf-8") as f: json.dump(orders, f)
-        with open(PROPS_FILE, "w", encoding="utf-8") as f: json.dump(properties, f)
-        return {"ok": True, "order": order}
-    return {"error": "Unknown action"}
-
-@app.post("/ai/chat")
-def ai_chat():
-    data = request.get_json(silent=True) or {}
-    user = (data.get("message") or "").strip()
-    if not user:
-        return {"error": "message is required"}, 400
-
-    r = client.responses.create(
-        model="gpt-4o-mini",
-        input=[
-            {"role": "system", "content": AI_SYSTEM},
-            {"role": "user", "content": user},
-        ],
-        response_format={"type": "json_object"},
-    )
-    import json as _json
-    try:
-        cmd = _json.loads(r.output_text)
-    except Exception:
-        return {"error": "AI did not return valid JSON", "raw": r.output_text}, 502
-
-    return {"command": cmd, "result": ai_exec(cmd)}
-
-# -------- Minimal AI Agent (safe lazy init) --------
+# -----------------------------------------------------------------------------
+# Minimal AI Agent (lazy init; won’t crash if key missing)
+# -----------------------------------------------------------------------------
 from openai import OpenAI
 
 def get_openai_client():
@@ -310,7 +194,7 @@ AI_SYSTEM = (
 
 @app.get("/__env_ok")
 def env_ok():
-    # simple checker to confirm server can see the key (does NOT leak it)
+    # Quick check: confirms the server can see the key (does NOT leak it)
     return {"openai_key_set": bool(os.getenv("OPENAI_API_KEY"))}
 
 def ai_exec(cmd: dict):
@@ -358,15 +242,15 @@ def ai_chat():
         response_format={"type": "json_object"},
     )
 
-    import json as _json
     try:
-        cmd = _json.loads(r.output_text)
+        cmd = json.loads(r.output_text)
     except Exception:
         return {"error": "AI did not return valid JSON", "raw": r.output_text}, 502
 
     return {"command": cmd, "result": ai_exec(cmd)}
 
-# ---- Local dev entrypoint ----------------------------------------------------
+# -----------------------------------------------------------------------------
+# Local dev entrypoint (Render uses Gunicorn via Procfile)
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    # For local testing; in production use gunicorn per Procfile
     app.run(host="0.0.0.0", port=5000, debug=True)
