@@ -1,4 +1,4 @@
-# app.py — Optiloves backend (single Flask app, CORS, endpoints, AI propose-only)
+# app.py — OptiLoves backend (Flask + CORS + endpoints + AI propose-only via Chat Completions)
 
 import os
 import json
@@ -174,7 +174,7 @@ def clear_orders():
     return {"ok": True}
 
 # -----------------------------------------------------------------------------
-# AI Agent (propose-only — never auto-buys)
+# AI Agent (propose-only — never auto-buys) using Chat Completions
 # -----------------------------------------------------------------------------
 def get_openai_client():
     key = os.getenv("OPENAI_API_KEY")
@@ -188,9 +188,9 @@ AI_SYSTEM = (
     'Schema: {"action":"list"|"price"|"propose_buy", "property_id":string?, "quantity":number?}\n'
     "If the user asks to buy, ALWAYS return action=\"propose_buy\" (never execute purchases).\n"
     'Examples:\n'
-    '- "What can I buy?" -> {"action":"list"}\n'
-    '- "price for kin-001" -> {"action":"price","property_id":"kin-001"}\n'
-    '- "buy 2 of kin-001" -> {"action":"propose_buy","property_id":"kin-001","quantity":2}\n'
+    '- \"What can I buy?\" -> {\"action\":\"list\"}\n'
+    '- \"price for kin-001\" -> {\"action\":\"price\",\"property_id\":\"kin-001\"}\n'
+    '- \"buy 2 of kin-001\" -> {\"action\":\"propose_buy\",\"property_id\":\"kin-001\",\"quantity\":2}\n'
     "Never add text outside JSON."
 )
 
@@ -227,43 +227,5 @@ def ai_exec(cmd: dict):
             "proposal": {
                 "property_id": pid,
                 "quantity": qty,
-                "unit_price": unit_price,
-                "total": total,
-                "available": available,
-                "title": prop.get("title"),
-            },
-        }
-    return {"ok": False, "error": "Unknown action"}
-
-@app.post("/ai/chat")
-def ai_chat():
-    client = get_openai_client()
-    if client is None:
-        return {"error": "OPENAI_API_KEY not set on server"}, 500
-
-    data = request.get_json(silent=True) or {}
-    user = (data.get("message") or "").strip()
-    if not user:
-        return {"error": "message is required"}, 400
-
-    r = client.responses.create(
-        model="gpt-4o-mini",
-        input=[
-            {"role": "system", "content": AI_SYSTEM},
-            {"role": "user", "content": user},
-        ],
-        response_format={"type": "json_object"},
-    )
-
-    try:
-        cmd = json.loads(r.output_text)
-    except Exception:
-        return {"error": "AI did not return valid JSON", "raw": r.output_text}, 502
-
-    return {"command": cmd, "result": ai_exec(cmd)}
-
-# -----------------------------------------------------------------------------
-# Local dev entrypoint (Render uses Gunicorn via Procfile)
-# -----------------------------------------------------------------------------
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+   
+::contentReference[oaicite:0]{index=0}
