@@ -5,4 +5,8 @@ openai>=1.40.0
 stripe>=9.0.0
 
 
+flask-limiter==3.8.0
+supabase==2.6.0
+sentry-sdk==2.13.0
+
 
