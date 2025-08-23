@@ -278,3 +278,57 @@ try:
 except Exception:
     pass
 # --- END FORCE REGISTER ---
+# --- BEGIN: override /properties on first request (adds price & availableTokens) ---
+try:
+    import json
+    from flask import jsonify, request
+
+    def _wrap_props(fn):
+        def _wrapped(*args, **kwargs):
+            rv = fn(*args, **kwargs)
+            try:
+                data = rv
+                status = headers = None
+                # Flask Response
+                if hasattr(rv, "get_data"):
+                    data = json.loads(rv.get_data(as_text=True))
+                # (data, status, headers) / (data, status)
+                elif isinstance(rv, tuple):
+                    data = rv[0]
+                    status = rv[1] if len(rv) > 1 else None
+                    headers = rv[2] if len(rv) > 2 else None
+
+                if isinstance(data, list):
+                    out = []
+                    for item in data:
+                        if isinstance(item, dict):
+                            out.append({
+                                "id": item.get("id"),
+                                "title": item.get("title"),
+                                "price": item.get("price", 50),
+                                "availableTokens": item.get("availableTokens", item.get("available_tokens", 3000)),
+                            })
+                        else:
+                            out.append(item)
+                    if headers:
+                        return jsonify(out), status or 200, headers
+                    return jsonify(out), status or 200
+            except Exception:
+                pass
+            return rv
+
+        return _wrapped
+
+    @app.before_first_request
+    def _override_properties_route():
+        try:
+            for rule in list(app.url_map.iter_rules()):
+                if rule.rule == "/properties" and "GET" in rule.methods:
+                    ep = rule.endpoint
+                    app.view_functions[ep] = _wrap_props(app.view_functions[ep])
+                    break
+        except Exception:
+            pass
+except Exception:
+    pass
+# --- END: override /properties on first request ---
