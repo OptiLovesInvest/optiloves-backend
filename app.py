@@ -234,3 +234,17 @@ try:
 except Exception:
     pass
 # --- END: robust /properties normalizer ---
+# --- BEGIN: properties-ui endpoint (simple, UI-ready) ---
+try:
+    from flask import jsonify
+
+    @app.get("/properties-ui")
+    def properties_ui():
+        # Minimal, stable payload the frontend expects
+        return jsonify([
+            {"id":"kin-001","title":"Kinshasa — Gombe Apartments","price":50,"availableTokens":4997},
+            {"id":"lua-001","title":"Luanda — Ilha Offices","price":50,"availableTokens":3000}
+        ])
+except Exception:
+    pass
+# --- END: properties-ui endpoint ---
