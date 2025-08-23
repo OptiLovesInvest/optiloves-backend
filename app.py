@@ -37,3 +37,31 @@ if __name__ == "__main__":
 
 
 
+# --- BEGIN: normalize /properties payload for UI ---
+try:
+    import json
+    from flask import request
+    @app.after_request
+    def _normalize_properties_payload(resp):
+        try:
+            if request.path == "/properties" and resp.content_type and "application/json" in resp.content_type:
+                data = json.loads(resp.get_data(as_text=True))
+                if isinstance(data, list):
+                    out = []
+                    for item in data:
+                        if isinstance(item, dict):
+                            out.append({
+                                "id": item.get("id"),
+                                "title": item.get("title"),
+                                "price": item.get("price", 50),
+                                "availableTokens": item.get("availableTokens", item.get("available_tokens", 3000))
+                            })
+                        else:
+                            out.append(item)
+                    resp.set_data(json.dumps(out))
+        except Exception:
+            pass
+        return resp
+except Exception:
+    pass
+# --- END: normalize /properties payload for UI ---
