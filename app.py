@@ -200,3 +200,37 @@ try:
 except Exception:
     pass
 # --- END: WSGI middleware to enrich /properties for UI ---
+# --- BEGIN: robust /properties normalizer ---
+try:
+    import json
+    from flask import request
+
+    @app.after_request
+    def _ui_properties_patch(resp):
+        try:
+            # Normalize both "/properties" and "/properties/"
+            if request.path.rstrip("/") == "/properties":
+                txt = resp.get_data(as_text=True)
+                data = json.loads(txt)
+                if isinstance(data, list):
+                    out = []
+                    for item in data:
+                        if isinstance(item, dict):
+                            out.append({
+                                "id": item.get("id"),
+                                "title": item.get("title"),
+                                "price": item.get("price", 50),
+                                "availableTokens": item.get("availableTokens", item.get("available_tokens", 3000)),
+                            })
+                        else:
+                            out.append(item)
+                    resp.set_data(json.dumps(out))
+                    resp.headers["Content-Type"] = "application/json"
+                    resp.headers["X-Props-Normalized"] = "1"
+        except Exception:
+            # don't break the response if anything goes wrong
+            pass
+        return resp
+except Exception:
+    pass
+# --- END: robust /properties normalizer ---
