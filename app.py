@@ -248,3 +248,33 @@ try:
 except Exception:
     pass
 # --- END: properties-ui endpoint ---
+# --- FORCE REGISTER: ping + properties-ui ---
+try:
+    from flask import jsonify
+
+    # simple health
+    def __ping_ui():
+        return "ok-ui", 200, {"Content-Type":"text/plain"}
+    try:
+        # add only if missing
+        if "/ping-ui" not in [r.rule for r in app.url_map.iter_rules()]:
+            app.add_url_rule("/ping-ui", endpoint="ping_ui", view_func=__ping_ui, methods=["GET"])
+    except Exception:
+        pass
+
+    # ui-ready properties
+    def __properties_ui_fixed():
+        return jsonify([
+            {"id":"kin-001","title":"Kinshasa — Gombe Apartments","price":50,"availableTokens":4997},
+            {"id":"lua-001","title":"Luanda — Ilha Offices","price":50,"availableTokens":3000}
+        ])
+
+    try:
+        rules = [r.rule for r in app.url_map.iter_rules()]
+        if "/properties-ui" not in rules:
+            app.add_url_rule("/properties-ui", endpoint="properties_ui", view_func=__properties_ui_fixed, methods=["GET"])
+    except Exception:
+        pass
+except Exception:
+    pass
+# --- END FORCE REGISTER ---
