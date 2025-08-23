@@ -3,3 +3,13 @@ __pycache__/
 *.pyc
 .gradio/
 orders.json
+
+.env
+.env.*
+.env.local
+
+
+app.backup.py
+app.backup.before-v5.py
+*.backup.py
+*.bak
