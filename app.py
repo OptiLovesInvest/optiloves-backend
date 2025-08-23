@@ -332,3 +332,14 @@ try:
 except Exception:
     pass
 # --- END: override /properties on first request ---
+# --- TEMP: list routes for debugging ---
+try:
+    @app.get("/_routes")
+    def _routes():
+        try:
+            return {"routes": sorted([r.rule for r in app.url_map.iter_rules()])}, 200
+        except Exception:
+            return {"routes": []}, 200
+except Exception:
+    pass
+# --- END TEMP ---
