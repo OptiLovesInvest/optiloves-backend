@@ -139,3 +139,64 @@ try:
 except Exception:
     pass
 # --- END: wrap /properties to add UI fields ---
+# --- BEGIN: WSGI middleware to enrich /properties for UI ---
+try:
+    import json
+
+    class _PropertiesNormalizerMiddleware:
+        def __init__(self, app):
+            self.app = app
+
+        def __call__(self, environ, start_response):
+            path = environ.get("PATH_INFO", "")
+            captured = {}
+
+            def _sr(status, headers, exc_info=None):
+                captured["status"] = status
+                captured["headers"] = headers
+                return lambda x: None  # rarely used write()
+
+            result = self.app(environ, _sr)
+            try:
+                body = b"".join(result)
+            finally:
+                # close generator if needed
+                try:
+                    result.close()
+                except Exception:
+                    pass
+
+            try:
+                if path == "/properties" and any(h[0].lower()=="content-type" and "application/json" in h[1] for h in captured.get("headers", [])):
+                    data = json.loads(body.decode("utf-8"))
+                    if isinstance(data, list):
+                        out = []
+                        for item in data:
+                            if isinstance(item, dict):
+                                out.append({
+                                    "id": item.get("id"),
+                                    "title": item.get("title"),
+                                    "price": item.get("price", 50),
+                                    "availableTokens": item.get("availableTokens", item.get("available_tokens", 3000)),
+                                })
+                            else:
+                                out.append(item)
+                        body = json.dumps(out).encode("utf-8")
+                        # update headers (content-length + content-type)
+                        headers = [(k, v) for (k, v) in captured["headers"] if k.lower() != "content-length"]
+                        # ensure content-type stays json
+                        if not any(k.lower()=="content-type" for k,_ in headers):
+                            headers.append(("Content-Type","application/json"))
+                        headers.append(("Content-Length", str(len(body))))
+                        captured["headers"] = headers
+            except Exception:
+                pass
+
+            start_response(captured["status"], captured["headers"])
+            return [body]
+
+    # Attach middleware (chain-friendly)
+    app.wsgi_app = _PropertiesNormalizerMiddleware(app.wsgi_app)
+except Exception:
+    pass
+# --- END: WSGI middleware to enrich /properties for UI ---
