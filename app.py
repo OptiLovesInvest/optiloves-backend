@@ -65,3 +65,77 @@ try:
 except Exception:
     pass
 # --- END: normalize /properties payload for UI ---
+# --- BEGIN: wrap /properties to add UI fields ---
+try:
+    import json
+    from functools import wraps
+    from flask import jsonify
+
+    def _wrap_properties_payload(fn):
+        @wraps(fn)
+        def inner(*args, **kwargs):
+            rv = fn(*args, **kwargs)
+
+            # Unpack common return types
+            status = headers = None
+            data = rv
+            if isinstance(rv, tuple):
+                data = rv[0]
+                status = rv[1] if len(rv) > 1 else None
+                headers = rv[2] if len(rv) > 2 else None
+
+            # If it's a Flask Response, modify its JSON body
+            if hasattr(data, "get_data"):
+                try:
+                    raw = data.get_data(as_text=True)
+                    payload = json.loads(raw)
+                    if isinstance(payload, list):
+                        out = []
+                        for item in payload:
+                            if isinstance(item, dict):
+                                out.append({
+                                    "id": item.get("id"),
+                                    "title": item.get("title"),
+                                    "price": item.get("price", 50),
+                                    "availableTokens": item.get("availableTokens", item.get("available_tokens", 3000)),
+                                })
+                            else:
+                                out.append(item)
+                        data.set_data(json.dumps(out))
+                        data.headers["Content-Type"] = "application/json"
+                        return data
+                except Exception:
+                    pass
+
+            # If it's a plain Python list, jsonify with defaults
+            try:
+                if isinstance(data, list):
+                    out = []
+                    for item in data:
+                        if isinstance(item, dict):
+                            out.append({
+                                "id": item.get("id"),
+                                "title": item.get("title"),
+                                "price": item.get("price", 50),
+                                "availableTokens": item.get("availableTokens", item.get("available_tokens", 3000)),
+                            })
+                        else:
+                            out.append(item)
+                    if headers:
+                        return jsonify(out), status or 200, headers
+                    return jsonify(out), status or 200
+            except Exception:
+                pass
+
+            return rv
+        return inner
+
+    # Find and wrap the existing /properties endpoint
+    for rule in list(app.url_map.iter_rules()):
+        if rule.rule == "/properties":
+            ep = rule.endpoint
+            app.view_functions[ep] = _wrap_properties_payload(app.view_functions[ep])
+            break
+except Exception:
+    pass
+# --- END: wrap /properties to add UI fields ---
