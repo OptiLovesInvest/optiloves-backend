@@ -1,0 +1,8 @@
+{
+    "cluster":  "devnet",
+    "rpc":  "https://api.devnet.solana.com",
+    "mint":  "71JhEvLjtER5joZ6MW1knrZoxv4rzGUJW11zqs4CvqnK",
+    "treasury":  "E4LyTZJj8m9qQWNAMqQFr2SFgKeUMShEpH8XAx2i2mQW",
+    "programId":  "",
+    "capUi":  100
+}

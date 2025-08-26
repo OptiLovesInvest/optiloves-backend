@@ -13,3 +13,6 @@ app.backup.py
 app.backup.before-v5.py
 *.backup.py
 *.bak
+
+keys/*.json
+
