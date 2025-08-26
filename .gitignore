@@ -16,3 +16,9 @@ app.backup.before-v5.py
 
 keys/*.json
 
+
+node_modules/
+keys/*.json
+.env
+.env.*
+npm-debug.log*
