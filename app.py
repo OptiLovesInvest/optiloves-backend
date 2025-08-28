@@ -13,8 +13,8 @@ CORS(app, resources={r"/*": {
 @app.route("/properties", methods=["GET"])
 def get_properties():
     data = [
-        {"id": "kin-001", "title": "Kinshasa — Gombe Apartments"},
-        {"id": "lua-001", "title": "Luanda — Ilha Offices"}
+        {"id": "kin-001", "title": "Kinshasa â€” Gombe Apartments"},
+        {"id": "lua-001", "title": "Luanda â€” Ilha Offices"}
     ]
     return jsonify(data)
 
@@ -30,8 +30,8 @@ if __name__ == "__main__":
 @app.route("/properties", methods=["GET"])
 def get_properties():
     data = [
-        {"id": "kin-001", "title": "Kinshasa — Gombe Apartments"},
-        {"id": "lua-001", "title": "Luanda — Ilha Offices"}
+        {"id": "kin-001", "title": "Kinshasa â€” Gombe Apartments"},
+        {"id": "lua-001", "title": "Luanda â€” Ilha Offices"}
     ]
     return jsonify(data)
 
@@ -39,20 +39,5 @@ if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=True)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 from app_kyc import kyc
-app.register_blueprint(kyc)
+app.register_blueprint(kyc, url_prefix='/api/kyc')
