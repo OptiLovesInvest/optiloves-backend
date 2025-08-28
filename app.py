@@ -1,4 +1,4 @@
-﻿ from flask import Flask
+ from flask import Flask
 from flask_cors import CORS
 app = Flask(__name__)
 import os
@@ -53,3 +53,6 @@ if __name__ == "__main__":
 
 
 
+
+from app_kyc import kyc
+app.register_blueprint(kyc)
