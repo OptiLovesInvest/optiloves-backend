@@ -1,19 +1,27 @@
 import os
-from flask import Flask, jsonify
-from flask_cors import CORS
+from flask import Flask, jsonify, request, make_response
 
-# Try to import main app; fall back to a fresh Flask app if import fails
 try:
-    from app import app as app  # your existing app if present
+    from app import app as app  # use existing app if import works
 except Exception:
     app = Flask(__name__)
 
-# ---- Strict CORS (stability + security) ----
-origins_env = os.getenv("ALLOWED_ORIGINS", "https://optilovesinvest.com,https://www.optilovesinvest.com")
-origins = [o.strip() for o in origins_env.split(",") if o.strip()]
-CORS(app, resources={r"/*": {"origins": origins}}, supports_credentials=True)
+# ---- Allowed origins (strict) ----
+ALLOWED = [o.strip() for o in os.getenv("ALLOWED_ORIGINS","https://optilovesinvest.com,https://www.optilovesinvest.com").split(",") if o.strip()]
 
-# ---- Root + Health (always present) ----
+# ---- Uniform CORS (works even without flask-cors) ----
+@app.after_request
+def add_cors(resp):
+    origin = request.headers.get("Origin")
+    if origin and origin in ALLOWED:
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Vary"] = "Origin"
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        resp.headers["Access-Control-Allow-Headers"] = request.headers.get("Access-Control-Request-Headers","Content-Type, Authorization")
+        resp.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    return resp
+
+# Root + Health
 @app.get("/")
 def root():
     return jsonify(ok=True, service="optiloves-backend"), 200
@@ -22,7 +30,7 @@ def root():
 def _health():
     return jsonify(status="ok", service="optiloves-backend"), 200
 
-# ---- KYC blueprint mount (no crash if missing) ----
+# KYC blueprint (best-effort)
 try:
     from kyc import kyc_bp
     if not any(r.rule.startswith("/api/kyc") for r in app.url_map.iter_rules()):
@@ -30,17 +38,18 @@ try:
 except Exception:
     pass
 
-# ---- Safe fallback for /properties so FE checks don’t 404 ----
-try:
-    have_props = any(r.rule == "/properties" for r in app.url_map.iter_rules())
-    if not have_props:
-        @app.get("/properties")
-        def _props():
-            return jsonify(items=[{
-                "id":"kin-001",
-                "city":"Kinshasa – Nsele",
-                "price":50,
-                "supply":1000
-            }]), 200
-except Exception:
-    pass
+# ---- Properties (explicit GET + OPTIONS) ----
+def _properties_payload():
+    return {"items":[{"id":"kin-001","city":"Kinshasa – Nsele","price":50,"supply":1000}]}
+
+@app.route("/properties", methods=["GET","OPTIONS"])
+def properties():
+    if request.method == "OPTIONS":
+        return make_response(("", 204))
+    return jsonify(_properties_payload()), 200
+
+@app.route("/api/properties", methods=["GET","OPTIONS"])
+def api_properties():
+    if request.method == "OPTIONS":
+        return make_response(("", 204))
+    return jsonify(_properties_payload()), 200
