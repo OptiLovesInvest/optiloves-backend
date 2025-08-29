@@ -45,8 +45,3 @@ def admin_sql():
         return jsonify(out)
     except Exception as e:
         return jsonify({"error":"db_error","detail":str(e)}), 500
-@bp.get("/api/admin/sql/secret-len")
-def admin_secret_len():
-    import os
-    s = os.environ.get("ADMIN_SECRET") or ""
-    return jsonify({"len": len(s)})
