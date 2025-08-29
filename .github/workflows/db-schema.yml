@@ -10,12 +10,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install psql client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
-      - name: Apply schema and verify
+
+      - name: Install psql client + python
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client python3
+
+      - name: Parse SUPABASE_DB_URL → PG* env (handles @, :, ?)
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          GITHUB_ENV: ${{ github.env }}
         run: |
-          export PGSSLMODE=require
-          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f db/schema.sql
-          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -c "select table_name from information_schema.tables where table_schema='public' order by table_name;"
+          python3 - <<'PY'
+          import os, sys, urllib.parse as u
+          url = os.environ.get('SUPABASE_DB_URL','')
+          if not url: sys.exit("SUPABASE_DB_URL missing")
+          p = u.urlparse(url)
+          host = p.hostname or ''
+          if 'pooler.supabase.com' not in host:
+              sys.exit("Secret must be a POOLER URI (…pooler.supabase.com)")
+          user = p.username or 'postgres'
+          pwd  = u.unquote(p.password or '')
+          port = p.port or 5432
+          db   = (p.path or '/postgres').lstrip('/')
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              f.write(f"PGHOST={host}\nPGPORT={port}\nPGUSER={user}\nPGDATABASE={db}\nPGPASSWORD={pwd}\nPGSSLMODE=require\n")
+          print(f"Target → {host}:{port}/{db} as {user}")
+          PY
+
+      - name: Apply schema and verify
+        run: |
+          psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -v ON_ERROR_STOP=1 -f db/schema.sql
+          psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -v ON_ERROR_STOP=1 -c \
+            "select table_name from information_schema.tables where table_schema='public' order by table_name;"
