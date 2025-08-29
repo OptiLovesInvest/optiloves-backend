@@ -1,4 +1,6 @@
-﻿# Robust WSGI entry for Render/Gunicorn
+
+from routes.admin_sql import bp as admin_sql_bp
+# Robust WSGI entry for Render/Gunicorn
 try:
     from app import app as app
 except Exception:
@@ -15,3 +17,6 @@ try:
         return {"ok": True, "service": "backend"}
 except Exception:
     pass
+
+# register admin sql blueprint
+app.register_blueprint(admin_sql_bp)
