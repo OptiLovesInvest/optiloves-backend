@@ -3,19 +3,28 @@ import os, psycopg
 
 bp = Blueprint("admin_sql", __name__)
 
+@bp.get("/api/admin/sql/diag")
+def admin_sql_diag():
+    has_url = bool(os.environ.get("SUPABASE_DB_URL"))
+    db_ok = False
+    err = None
+    if has_url:
+        try:
+            with psycopg.connect(os.environ["SUPABASE_DB_URL"]) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("select 1")
+                    cur.fetchone()
+            db_ok = True
+        except Exception as e:
+            err = str(e)
+    return jsonify({"ok": True, "has_url": has_url, "db_ok": db_ok, "error": err})
 
-def _safe_err(kind, exc=None, code=500):
-    msg = kind
-    if exc is not None:
-        cls = type(exc).__name__
-        msg = f"{kind}: {cls}"
-    return jsonify({"ok": False, "error": msg}), code
 ALLOWED_PREFIXES = (
     "select","create table","create extension","insert","update","delete",
     "alter table","drop table if exists"
 )
 
-@bp.route("/api/admin/sql", methods=["POST"])
+@bp.post("/api/admin/sql")
 def admin_sql():
     if request.json.get("secret") != os.environ.get("ADMIN_SECRET"):
         return {"error":"unauthorized"}, 403
@@ -25,13 +34,14 @@ def admin_sql():
         return {"error":"sql not allowed"}, 400
 
     out = []
-if not os.environ.get("SUPABASE_DB_URL"):
-    return _safe_err("SUPABASE_DB_URL missing", code=500)
-try:
-    with psycopg.connect(os.environ["SUPABASE_DB_URL"]) as conn:
-        with conn.cursor() as cur:
-            cur.execute(sql)
-            if cur.description:
-                cols = [d[0] for d in cur.description]
-                out = [dict(zip(cols, row)) for row in cur.fetchall()]
-            conn.commit()\n    return jsonify(out)\nexcept Exception as e:\n    return _safe_err('db_error', e, 500)
+    try:
+        with psycopg.connect(os.environ["SUPABASE_DB_URL"]) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                if cur.description:
+                    cols = [d[0] for d in cur.description]
+                    out = [dict(zip(cols, row)) for row in cur.fetchall()]
+                conn.commit()
+        return jsonify(out)
+    except Exception as e:
+        return jsonify({"error":"db_error","detail":str(e)}), 500
