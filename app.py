@@ -1,3 +1,4 @@
+from routes.admin_sql import bp as admin_sql_bp
 from flask import Flask
 from flask_cors import CORS
 app = Flask(__name__)
@@ -39,10 +40,10 @@ def get_properties():
     data = [
 
 
-        {"id": "kin-001", "title": "Kinshasa ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Gombe Apartments"},
+        {"id": "kin-001", "title": "Kinshasa ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Gombe Apartments"},
 
 
-        {"id": "lua-001", "title": "Luanda ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Ilha Offices"}
+        {"id": "lua-001", "title": "Luanda ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Ilha Offices"}
 
 
     ]
@@ -80,10 +81,10 @@ def get_properties():
     data = [
 
 
-        {"id": "kin-001", "title": "Kinshasa ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Gombe Apartments"},
+        {"id": "kin-001", "title": "Kinshasa ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Gombe Apartments"},
 
 
-        {"id": "lua-001", "title": "Luanda ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Ilha Offices"}
+        {"id": "lua-001", "title": "Luanda ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Ilha Offices"}
 
 
     ]
@@ -122,3 +123,9 @@ if "kyc" not in app.blueprints:
 def _health():
     return {"ok": True, "service": "backend"}
 # === end KYC ===
+from flask import jsonify
+app.register_blueprint(admin_sql_bp)
+
+@app.get("/ping")
+def _ping():
+    return jsonify({"ok": True})

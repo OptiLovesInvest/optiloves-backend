@@ -1,3 +1,4 @@
+from routes.admin_sql import bp as admin_sql_bp
 from flask import Flask, request
 from flask_cors import CORS
 import json, os
@@ -7,8 +8,8 @@ app = Flask(__name__)
 CORS(app)
 
 PROPERTIES = [
-    {"id": "kin-001", "title": "Kinshasa — Gombe Apartments", "price": 120000},
-    {"id": "lua-001", "title": "Luanda — Ilha Offices", "price": 250000},
+    {"id": "kin-001", "title": "Kinshasa â€” Gombe Apartments", "price": 120000},
+    {"id": "lua-001", "title": "Luanda â€” Ilha Offices", "price": 250000},
 ]
 
 ORDERS_FILE = "orders.json"
@@ -42,3 +43,9 @@ def orders_route():
 
 if __name__ == "__main__":
     app.run(debug=True)
+from flask import jsonify
+app.register_blueprint(admin_sql_bp)
+
+@app.get("/ping")
+def _ping():
+    return jsonify({"ok": True})
