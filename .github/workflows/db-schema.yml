@@ -1,0 +1,21 @@
+﻿name: db-schema
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "db/schema.sql"
+      - ".github/workflows/db-schema.yml"
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply schema and verify
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          export PGSSLMODE=require
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f db/schema.sql
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -c "select table_name from information_schema.tables where table_schema='public' order by table_name;"
