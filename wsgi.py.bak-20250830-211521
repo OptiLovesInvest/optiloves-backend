@@ -46,8 +46,8 @@ except Exception:
 
 # Properties payload
 def _properties_payload():
-    return {"items":[{"id":"kin-001","city":"Kinshasa â€“ Nsele","price":50,"supply":1000},
-                     {"id":"lua-001","city":"Luanda â€“ Ilha","price":50,"supply":3000}]}
+    return {"items":[{"id":"kin-001","city":"Kinshasa – Nsele","price":50,"supply":1000},
+                     {"id":"lua-001","city":"Luanda – Ilha","price":50,"supply":3000}]}
 
 # /properties (GET + OPTIONS)
 if not has_rule("/properties"):
@@ -62,46 +62,3 @@ if not has_rule("/api/properties"):
     def _apiprops_opts(): return make_response(("",204))
     app.add_url_rule("/api/properties", endpoint="apiprops_get", view_func=_apiprops_get, methods=["GET"])
     app.add_url_rule("/api/properties", endpoint="apiprops_opts", view_func=_apiprops_opts, methods=["OPTIONS"])
-# OPTI:CORS_CSP_MIDDLEWARE (stability-first, idempotent)
-def _opti_cors_csp(app):
-    allowed = {"https://optilovesinvest.com","https://www.optilovesinvest.com"}
-    def _wrapped(environ, start_response):
-        origin = environ.get('HTTP_ORIGIN')
-        # Preflight: fast 204 with minimal headers
-        if environ.get('REQUEST_METHOD') == 'OPTIONS':
-            hdr = []
-            if origin in allowed:
-                hdr += [
-                    ('Access-Control-Allow-Origin', origin),
-                    ('Vary', 'Origin'),
-                    ('Access-Control-Allow-Methods', 'GET,POST,OPTIONS'),
-                    ('Access-Control-Allow-Headers', 'Content-Type,Authorization,ComplyCube-Signature'),
-                    ('Access-Control-Max-Age', '600'),
-                ]
-            start_response('204 No Content', hdr + [('Content-Length','0')])
-            return [b'']
-        def _sr(status, headers, exc_info=None):
-            if origin in allowed:
-                headers += [
-                    ('Access-Control-Allow-Origin', origin),
-                    ('Vary', 'Origin'),
-                    ('Access-Control-Allow-Methods', 'GET,POST,OPTIONS'),
-                    ('Access-Control-Allow-Headers', 'Content-Type,Authorization,ComplyCube-Signature'),
-                    ('Access-Control-Max-Age', '600'),
-                ]
-            # Tight, explicit CSP (no wildcards)
-            headers.append((
-                'Content-Security-Policy',
-                "default-src 'none'; connect-src 'self' https://optilovesinvest.com https://www.optilovesinvest.com; img-src 'self' data: https:; script-src 'self'; style-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'"
-            ))
-            return start_response(status, headers, exc_info)
-        return app(environ, _sr)
-    return _wrapped
-
-# Wrap Flask app if present
-try:
-    app  # noqa
-    app = _opti_cors_csp(app)
-except NameError:
-    pass
-# /OPTI:CORS_CSP_MIDDLEWARE
