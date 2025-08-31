@@ -22,3 +22,8 @@ keys/*.json
 .env
 .env.*
 npm-debug.log*
+# Local backups & helpers
+/_backups/
+/import_check.py
+*.bak
+*.bak*
