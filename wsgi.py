@@ -14,7 +14,7 @@ try:
                 resp.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
                 resp.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
                 resp.headers["Access-Control-Max-Age"] = "86400"
-                # Ensure caches donâ€™t mix origins
+                # Ensure caches donÃ¢â‚¬â„¢t mix origins
                 vary = resp.headers.get("Vary")
                 resp.headers["Vary"] = ("Origin" if not vary else (vary + ", Origin") if "Origin" not in vary else vary)
         except Exception:
@@ -89,3 +89,14 @@ def _opti_portfolio_get(owner):
         return Response("", status=204)
     return _opti_try_forward_post(owner)
 # ==== /GET shim ====
+# ==== OPTI ROUTES DEBUG (guarded) ====
+import os
+if os.environ.get("OPTI_DEBUG_ROUTES") == "1":
+    @app.get("/_routes")
+    def _routes():
+        data=[]
+        for r in app.url_map.iter_rules():
+            methods = sorted(list((r.methods or set()) - {"HEAD"}))
+            data.append({"rule": str(r), "endpoint": r.endpoint, "methods": methods})
+        return {"routes": data}
+# ==== /OPTI ROUTES DEBUG ====
