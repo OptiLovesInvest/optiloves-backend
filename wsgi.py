@@ -1,4 +1,4 @@
-from app import app  # Flask app instance must be named `app`
+﻿from app import app  # Flask app instance must be named `app`
 # ==== OPTI CORS v20250831 (strict, idempotent) ====
 try:
     from flask import request
@@ -14,7 +14,7 @@ try:
                 resp.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
                 resp.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
                 resp.headers["Access-Control-Max-Age"] = "86400"
-                # Ensure caches donÃ¢â‚¬â„¢t mix origins
+                # Ensure caches donÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢t mix origins
                 vary = resp.headers.get("Vary")
                 resp.headers["Vary"] = ("Origin" if not vary else (vary + ", Origin") if "Origin" not in vary else vary)
         except Exception:
@@ -92,7 +92,6 @@ def _opti_portfolio_get(owner):
 # ==== OPTI ROUTES DEBUG (guarded) ====
 import os
 if os.environ.get("OPTI_DEBUG_ROUTES") == "1":
-    @app.get("/_routes")
     def _routes():
         data=[]
         for r in app.url_map.iter_rules():
