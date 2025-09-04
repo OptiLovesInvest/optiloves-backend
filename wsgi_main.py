@@ -27,13 +27,36 @@ class _OptiBlockAgentsMiddleware:
         return self.app(environ, start_response)
 
 app.wsgi_app = _OptiBlockAgentsMiddleware(app.wsgi_app)
-# ==== TEMP PORTFOLIO SHIM (remove after wiring real impl) ====
-try:
-    from flask import jsonify
-    _a = app if 'app' in globals() else __import__('app').app
-    @_a.get("/api/portfolio/<owner>")
-    def _opti_portfolio_temp(owner):
-        return jsonify({"owner": owner, "items": [], "source": "shim"}), 200
-except Exception as _e:
-    pass
-# ==== /TEMP SHIM ====
+# ==== PORTFOLIO ROUTE (real, zero-deps) ====
+import os, json, urllib.request
+from flask import jsonify
+_a = app if 'app' in globals() else __import__('app').app
+
+RPC   = os.environ.get('SOLANA_RPC','https://api.mainnet-beta.solana.com')
+MINTS = [m.strip() for m in os.environ.get('OPTILOVES_MINTS','').split(',') if m.strip()]
+
+def _rpc(method, params):
+    try:
+        payload = json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}).encode('utf-8')
+        req = urllib.request.Request(RPC, data=payload, headers={'Content-Type':'application/json'})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            return json.loads(resp.read().decode('utf-8'))
+    except Exception as e:
+        return {'error': str(e)}
+
+@_a.get('/api/portfolio/<owner>')
+def opti_portfolio(owner):
+    items = []
+    for mint in MINTS:
+        res = _rpc('getTokenAccountsByOwner', [owner, {'mint': mint}, {'encoding':'jsonParsed'}])
+        bal = 0
+        try:
+            for acc in res.get('result', {}).get('value', []):
+                amt = acc['account']['data']['parsed']['info']['tokenAmount']['uiAmount']
+                if amt: bal += amt
+        except Exception:
+            pass
+        if bal > 0:
+            items.append({'mint': mint, 'balance': int(bal)})
+    return jsonify({'owner': owner, 'items': items, 'source': 'rpc'}), 200
+# ==== /PORTFOLIO ROUTE ====
