@@ -27,3 +27,13 @@ class _OptiBlockAgentsMiddleware:
         return self.app(environ, start_response)
 
 app.wsgi_app = _OptiBlockAgentsMiddleware(app.wsgi_app)
+# ==== TEMP PORTFOLIO SHIM (remove after wiring real impl) ====
+try:
+    from flask import jsonify
+    _a = app if 'app' in globals() else __import__('app').app
+    @_a.get("/api/portfolio/<owner>")
+    def _opti_portfolio_temp(owner):
+        return jsonify({"owner": owner, "items": [], "source": "shim"}), 200
+except Exception as _e:
+    pass
+# ==== /TEMP SHIM ====
