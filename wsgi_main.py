@@ -35,6 +35,15 @@ _a = app if 'app' in globals() else __import__('app').app
 RPC   = os.environ.get('SOLANA_RPC','https://api.mainnet-beta.solana.com')
 MINTS = [m.strip() for m in os.environ.get('OPTILOVES_MINTS','').split(',') if m.strip()]
 
+# Display metadata map (extend as you add more mints)
+MINT_META = {
+  '5ihsE55yaFFZXoizZKv5xsd6YjEuvaXiiMr2FLjQztN9': {
+    'name': 'Opti Nsele',
+    'symbol': 'OPTI-NSELE',
+    'icon': 'https://optilovesinvest.com/favicon.ico',
+  }
+}
+
 def _rpc(method, params):
     try:
         payload = json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}).encode('utf-8')
@@ -57,6 +66,10 @@ def opti_portfolio(owner):
         except Exception:
             pass
         if bal > 0:
-            items.append({'mint': mint, 'balance': int(bal)})
+            meta = MINT_META.get(mint)
+            item = {'mint': mint, 'balance': int(bal)}
+            if meta:
+                item.update(meta)
+            items.append(item)
     return jsonify({'owner': owner, 'items': items, 'source': 'rpc'}), 200
 # ==== /PORTFOLIO ROUTE ====
