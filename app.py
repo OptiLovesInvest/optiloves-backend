@@ -100,3 +100,32 @@ def payment_webhook():
 # WSGI entry
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5050)
+# ==== OPTI DIAG START (secure) ====
+@app.get('/api/ping')
+def api_ping():
+    return {'ok': True, 'msg': 'api alive'}
+
+@app.get('/api/diag')
+def api_diag():
+    # Protected by before_request API key guard
+    info = {'pg_dsn_set': bool(os.environ.get('PG_DSN')), 'psycopg2': None, 'db_ok': None, 'error': None}
+    try:
+        import psycopg2  # noqa
+        info['psycopg2'] = True
+        dsn = os.environ.get('PG_DSN')
+        if not dsn:
+            info['db_ok'] = False
+            return info, 200
+        try:
+            with psycopg2.connect(dsn) as conn:
+                with conn.cursor() as cur:
+                    cur.execute('SELECT 1;')
+                    info['db_ok'] = (cur.fetchone()[0] == 1)
+        except Exception as ex:
+            info['db_ok'] = False
+            info['error'] = str(ex)[:300]
+    except Exception as ex:
+        info['psycopg2'] = False
+        info['error'] = str(ex)[:300]
+    return info, 200
+# ==== OPTI DIAG END ====
