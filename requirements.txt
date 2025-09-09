@@ -4,3 +4,4 @@ psycopg[binary]==3.2.9
 gunicorn
 flask-cors
 requests
+psycopg2-binary>=2.9
