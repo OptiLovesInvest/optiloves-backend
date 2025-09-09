@@ -27,3 +27,7 @@ npm-debug.log*
 /import_check.py
 *.bak
 *.bak*
+
+app.big.py
+app.py.bak_*
+
