@@ -129,3 +129,21 @@ def api_diag():
         info['error'] = str(ex)[:300]
     return info, 200
 # ==== OPTI DIAG END ====
+
+# ==== OPTI DSN SANITIZE START ====
+def _clean_dsn(v: str) -> str:
+    try:
+        # strip whitespace and any accidental wrapping quotes
+        return (v or "").strip().strip('"').strip("'")
+    except Exception:
+        return v or ""
+
+# normalize PG_DSN once, early
+try:
+    _raw = os.environ.get("PG_DSN") or ""
+    os.environ["PG_DSN"] = _clean_dsn(_raw)
+    if _raw and _raw != os.environ["PG_DSN"]:
+        app.logger.warning("PG_DSN sanitized (leading/trailing quotes/space removed)")
+except Exception as _e:
+    app.logger.warning("PG_DSN sanitize skipped: %s", _e)
+# ==== OPTI DSN SANITIZE END ====
