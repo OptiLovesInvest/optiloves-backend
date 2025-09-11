@@ -147,3 +147,73 @@ try:
 except Exception as _e:
     app.logger.warning("PG_DSN sanitize skipped: %s", _e)
 # ==== OPTI DSN SANITIZE END ====
+
+# ==== OPTI PORTFOLIO START ====
+import json, urllib.request, urllib.error, time
+
+def _env_csv(name, default=""):
+    v = os.environ.get(name) or default
+    return [x.strip() for x in v.split(",") if x.strip()]
+
+def _sol_post(rpc_url, method, params):
+    payload = json.dumps({"jsonrpc":"2.0","id":1,"method":method,"params":params}).encode("utf-8")
+    req = urllib.request.Request(rpc_url, data=payload, headers={"Content-Type":"application/json"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+def _sum_ui_amount(value_list):
+    total = 0.0
+    for it in value_list or []:
+        try:
+            amt = it["account"]["data"]["parsed"]["info"]["tokenAmount"]["uiAmount"] or 0
+            total += float(amt)
+        except Exception:
+            continue
+    return total
+
+@app.get('/api/portfolio/<owner>')
+def api_portfolio(owner: str):
+    # API key guard already enforced by @app.before_request
+    try:
+        if not owner or len(owner) < 32:
+            return jsonify({"ok": False, "error": "invalid owner"}), 400
+
+        rpc    = os.environ.get("SOLANA_RPC") or "https://api.mainnet-beta.solana.com"
+        mints  = _env_csv("OPTILOVES_MINTS", "")
+        try:
+            unit_price = float(os.environ.get("UNIT_PRICE_USD") or 50)
+        except Exception:
+            unit_price = 50.0
+
+        if not mints:
+            return jsonify({"ok": False, "error": "OPTILOVES_MINTS not set"}), 200
+
+        items = []
+        total_tokens = 0.0
+
+        for mint in mints:
+            try:
+                rs = _sol_post(rpc, "getTokenAccountsByOwner", [owner, {"mint": mint}, {"encoding":"jsonParsed"}])
+                value = (rs or {}).get("result",{}).get("value",[])
+                qty = _sum_ui_amount(value)
+                items.append({"mint": mint, "quantity": qty})
+                total_tokens += qty
+                time.sleep(0.05)  # tiny pacing for RPC
+            except urllib.error.URLError as e:
+                return jsonify({"ok": False, "error": f"rpc_unreachable: {str(e)[:180]}"}), 200
+            except Exception as e:
+                items.append({"mint": mint, "quantity": 0, "error": str(e)[:120]})
+
+        est_value = round(total_tokens * unit_price, 6)
+        return jsonify({
+            "ok": True,
+            "owner": owner,
+            "unit_price_usd": unit_price,
+            "total_tokens": total_tokens,
+            "est_value_usd": est_value,
+            "items": items
+        }), 200
+    except Exception:
+        app.logger.exception("api_portfolio failed")
+        return jsonify({"ok": False, "error": "internal"}), 500
+# ==== OPTI PORTFOLIO END ====
