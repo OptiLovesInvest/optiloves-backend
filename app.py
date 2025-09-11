@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+﻿from flask import Flask, request, jsonify
 import os
 
 app = Flask(__name__)
@@ -173,47 +173,72 @@ def _sum_ui_amount(value_list):
 
 @app.get('/api/portfolio/<owner>')
 def api_portfolio(owner: str):
-    # API key guard already enforced by @app.before_request
     try:
         if not owner or len(owner) < 32:
-            return jsonify({"ok": False, "error": "invalid owner"}), 400
+            return jsonify({'ok': False, 'error': 'invalid owner'}), 400
 
-        rpc    = os.environ.get("SOLANA_RPC") or "https://api.mainnet-beta.solana.com"
-        mints  = _env_csv("OPTILOVES_MINTS", "")
-        try:
-            unit_price = float(os.environ.get("UNIT_PRICE_USD") or 50)
-        except Exception:
-            unit_price = 50.0
-
-        if not mints:
-            return jsonify({"ok": False, "error": "OPTILOVES_MINTS not set"}), 200
+        rpc   = os.environ.get('SOLANA_RPC') or 'https://api.mainnet-beta.solana.com'
+        mdefs = _parse_mints_env()
+        if not mdefs:
+            return jsonify({'ok': False, 'error': 'OPTILOVES_MINTS not set'}), 200
 
         items = []
         total_tokens = 0.0
+        total_usd    = 0.0
 
-        for mint in mints:
+        for md in mdefs:
+            mint  = md['mint']
+            price = float(md.get('price') or 50)
             try:
-                rs = _sol_post(rpc, "getTokenAccountsByOwner", [owner, {"mint": mint}, {"encoding":"jsonParsed"}])
-                value = (rs or {}).get("result",{}).get("value",[])
+                rs = _sol_post(rpc, 'getTokenAccountsByOwner', [owner, {'mint': mint}, {'encoding':'jsonParsed'}])
+                value = (rs or {}).get('result',{}).get('value',[])
                 qty = _sum_ui_amount(value)
-                items.append({"mint": mint, "quantity": qty})
+                usd = round(qty * price, 6)
+                items.append({'id': md['id'], 'mint': mint, 'quantity': qty, 'unit_price_usd': price, 'est_value_usd': usd})
                 total_tokens += qty
-                time.sleep(0.05)  # tiny pacing for RPC
+                total_usd    += usd
+                time.sleep(0.05)
             except urllib.error.URLError as e:
-                return jsonify({"ok": False, "error": f"rpc_unreachable: {str(e)[:180]}"}), 200
+                return jsonify({'ok': False, 'error': f'rpc_unreachable: {str(e)[:180]}'}), 200
             except Exception as e:
-                items.append({"mint": mint, "quantity": 0, "error": str(e)[:120]})
+                items.append({'id': md['id'], 'mint': mint, 'quantity': 0, 'unit_price_usd': price, 'error': str(e)[:120]})
 
-        est_value = round(total_tokens * unit_price, 6)
         return jsonify({
-            "ok": True,
-            "owner": owner,
-            "unit_price_usd": unit_price,
-            "total_tokens": total_tokens,
-            "est_value_usd": est_value,
-            "items": items
+            'ok': True,
+            'owner': owner,
+            'total_tokens': total_tokens,
+            'est_value_usd': round(total_usd, 6),
+            'items': items
         }), 200
     except Exception:
-        app.logger.exception("api_portfolio failed")
-        return jsonify({"ok": False, "error": "internal"}), 500
+        app.logger.exception('api_portfolio failed')
+        return jsonify({'ok': False, 'error': 'internal'}), 500
 # ==== OPTI PORTFOLIO END ====
+
+# ==== OPTI MINT PARSER START ====
+def _parse_mints_env():
+    raw = os.environ.get("OPTILOVES_MINTS") or ""
+    unit_default = float(os.environ.get("UNIT_PRICE_USD") or 50)
+    out = []
+    try:
+        s = raw.strip()
+        if s.startswith("[") or s.startswith("{"):
+            data = json.loads(s)
+            if isinstance(data, dict): data=[data]
+            for it in data:
+                mint = (it.get("mint") or "").strip()
+                if mint:
+                    out.append({
+                        "id": it.get("id") or mint[:6],
+                        "mint": mint,
+                        "price": float(it.get("price") or unit_default)
+                    })
+        else:
+            # CSV of mints
+            for mint in [x.strip() for x in raw.split(",") if x.strip()]:
+                out.append({"id": mint[:6], "mint": mint, "price": unit_default})
+    except Exception as _e:
+        app.logger.warning("OPTILOVES_MINTS parse failed: %s", _e)
+    return out
+# ==== OPTI MINT PARSER END ====
+
