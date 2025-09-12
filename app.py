@@ -375,3 +375,12 @@ def api_routes_direct():
     return jsonify({'ok': True, 'routes': rules}), 200
 
 
+
+# ==== OPTI PUBLIC ROUTES START ====
+@app.route('/routes', methods=['GET'])
+def _opti_public_routes():
+    from flask import jsonify
+    rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
+    return jsonify({'ok': True, 'routes': rules}), 200
+# ==== OPTI PUBLIC ROUTES END ====
+
