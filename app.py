@@ -353,3 +353,17 @@ def api_routes():
 
 from opti_routes import bp as _opti_bp\napp.register_blueprint(_opti_bp)
 
+
+try:
+    from opti_routes import bp as _opti_bp
+    app.register_blueprint(_opti_bp)
+except Exception as _e:
+    pass
+
+
+@app.route('/api/routes', methods=['GET'])
+def api_routes_direct():
+    from flask import jsonify
+    rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
+    return jsonify({'ok': True, 'routes': rules}), 200
+
