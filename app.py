@@ -265,6 +265,69 @@ def _parse_mints_env():
 # ==== OPTI WEBHOOK REWRITE START ====
 @app.route('/webhooks/payment', methods=['POST'])
 def payment_webhook():
+
+    # ==== OPTI: payload normalizer (stability) ====
+    from decimal import Decimal, ROUND_HALF_UP
+    payload = request.get_json(silent=True) or {}
+
+    # Accept legacy/new keys
+    order_id    = payload.get('order_id') or payload.get('id') or payload.get('reference')
+    property_id = payload.get('property_id') or payload.get('asset_id') or payload.get('property')
+    owner       = payload.get('owner') or payload.get('wallet') or payload.get('address')
+
+    def _to_int(x, default=0):
+        try: return int(x)
+        except: return default
+
+    quantity      = _to_int(payload.get('quantity') or payload.get('qty') or 0)
+    amount_cents  = _to_int(payload.get('amount_cents') or payload.get('total_cents') or 0)
+
+    unit_price_usd = payload.get('unit_price_usd')
+    total_usd      = payload.get('total_usd')
+
+    # Derive prices when missing
+    if unit_price_usd is None and amount_cents and quantity > 0:
+        unit_price_usd = float((Decimal(amount_cents) / Decimal(100*quantity)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    if total_usd is None and amount_cents:
+        total_usd = float((Decimal(amount_cents) / Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+    # Cents helpers (some code may still use these)
+    unit_cents  = _to_int(round((unit_price_usd or 0.0) * 100))
+    total_cents = _to_int(round((total_usd      or 0.0) * 100))
+
+    # Status normalize
+    status_in = (payload.get('status') or '').lower()
+    status = ('completed' if status_in in ('completed','succeeded','paid','settled')
+              else 'pending' if status_in in ('pending','requires_action','processing')
+              else 'failed'  if status_in in ('failed','canceled','cancelled','refunded')
+              else 'pending')
+
+    # Provide aliases so downstream code/SQL can use either naming
+    wallet = owner
+    id = order_id
+    status_db = status
+
+    # Update payload in case later code reads from it
+    payload.update({
+        'order_id': order_id, 'id': id,
+        'property_id': property_id,
+        'owner': owner, 'wallet': wallet,
+        'quantity': quantity,
+        'amount_cents': amount_cents,
+        'unit_price_usd': unit_price_usd,
+        'total_usd': total_usd,
+        'unit_cents': unit_cents,
+        'total_cents': total_cents,
+        'status': status, 'status_db': status_db
+    })
+
+    # Minimal validation
+    if not order_id or not property_id or not owner or quantity <= 0:
+        # Show details only when explicitly requested
+        if request.headers.get('X-Opti-Debug') == '1':
+            return jsonify({'error':'invalid payload','need':['order_id','property_id','owner','quantity>0'],'got':payload}), 400
+        return jsonify({'error':'invalid payload'}), 400
+    # ==== /OPTI normalizer ====
     try:
         from flask import request, jsonify
         import os, psycopg2
