@@ -350,3 +350,6 @@ def api_routes():
     except Exception as ex:
         return jsonify({'ok': False, 'error': str(ex)}), 500
 # ==== OPTI ROUTES LIST END ====
+
+from opti_routes import bp as _opti_bp\napp.register_blueprint(_opti_bp)
+
