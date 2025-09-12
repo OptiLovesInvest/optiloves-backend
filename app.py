@@ -337,3 +337,16 @@ def api_webhook_test():
         # Return the real error so we can fix it
         return jsonify({'ok': False, 'error': str(ex)}), 500
 # ==== OPTI TEST WEBHOOK END ====
+
+# ==== OPTI ROUTES LIST START ====
+@app.route('/api/routes', methods=['GET'])
+def api_routes():
+    try:
+        from flask import jsonify
+        rules = []
+        for r in app.url_map.iter_rules():
+            rules.append({'rule': str(r), 'methods': sorted(list(r.methods))})
+        return jsonify({'ok': True, 'routes': rules}), 200
+    except Exception as ex:
+        return jsonify({'ok': False, 'error': str(ex)}), 500
+# ==== OPTI ROUTES LIST END ====
