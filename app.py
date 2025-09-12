@@ -286,9 +286,10 @@ def payment_webhook():
 
         return jsonify({'ok': True, 'order_id': order_id, 'unit_price_usd': unit_price, 'total_usd': total_cents/100.0}), 200
     except Exception as ex:
-        app.logger.exception('payment_webhook failed')
-        import os as _os
-        if _os.environ.get('OPTI_DEBUG') == '1':
-            return jsonify({'error': str(ex)}), 500
-        return jsonify({'error':'internal'}), 500
+    app.logger.exception('payment_webhook failed')
+    from flask import request
+    if request.headers.get('X-Opti-Debug') == '1':
+        return jsonify({'error': str(ex)}), 500
+    return jsonify({'error':'internal'}), 500
 # ==== OPTI WEBHOOK REWRITE END ====
+
