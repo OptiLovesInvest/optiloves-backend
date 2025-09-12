@@ -1,4 +1,4 @@
-﻿from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify
 import os
 
 app = Flask(__name__)
@@ -86,19 +86,26 @@ def payment_webhook():
         import psycopg2
         with psycopg2.connect(dsn) as conn:
             with conn.cursor() as cur:
-                cur.execute("""
-\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ INSERT\ INTO\ orders\ \(id,\ property_id,\ wallet,\ quantity,\ unit_price_usd,\ total_usd,\ status\)\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ VALUES\ \(%s,%s,%s,%s,%s,%s,'settled'\)\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ON\ CONFLICT\ \(id\)\ DO\ UPDATE\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ SET\ unit_price_usd=EXCLUDED\.unit_price_usd,\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ total_usd\ \ \ \ \ =EXCLUDED\.total_usd,\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ quantity\ \ \ \ \ \ =EXCLUDED\.quantity,\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ property_id\ \ \ =EXCLUDED\.property_id,\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ wallet\ \ \ \ \ \ \ \ =EXCLUDED\.wallet,\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ status\ \ \ \ \ \ \ \ ='settled';
-                """, (order_id, property_id, wallet, quantity, unit_cents, total_cents, status_db)
+                # ==== OPTI: safe SQL (stability) ====
+                sql = (
+                    "INSERT INTO orders (order_id, property_id, owner, quantity, unit_price_usd, status) "
+                    "VALUES (%s,%s,%s,%s,%s,%s) "
+                    "ON CONFLICT (order_id) DO UPDATE SET "
+                    "quantity = EXCLUDED.quantity, "
+                    "unit_price_usd = EXCLUDED.unit_price_usd, "
+                    "status = EXCLUDED.status"
+                )
+                cur.execute(sql, (order_id, property_id, wallet, quantity, float(unit_price_usd or 0.0), status))
+                # ==== /OPTI safe SQL ====
 
         return jsonify({'ok': True, 'order_id': order_id, 'unit_price_usd': float(unit_price), 'total_usd': total_usd}), 200
     except Exception as ex:
-    app.logger.exception('payment_webhook failed')
-    # show error only when explicitly requested
-    from flask import request
-    if request.headers.get('X-Opti-Debug') == '1':
-        return jsonify({'error': str(ex)[:300]}), 500
-    return jsonify({'error':'internal'}), 500
-
+        app.logger.exception('payment_webhook failed')
+        # show error only when explicitly requested
+        from flask import request
+        if request.headers.get('X-Opti-Debug') == '1':
+            return jsonify({'error': str(ex)[:300]}), 500
+        return jsonify({'error':'internal'}), 500
 # WSGI entry
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5050)
@@ -293,6 +300,7 @@ def payment_webhook():
 
         return jsonify({'ok': True, 'order_id': order_id, 'unit_price_usd': unit_price, 'total_usd': total_cents/100.0}), 200
     except Exception as ex:
+        app.logger.exception('payment_webhook failed')
     app.logger.exception('payment_webhook failed')
     from flask import request
     if request.headers.get('X-Opti-Debug') == '1':
@@ -358,7 +366,8 @@ def api_routes():
         return jsonify({'ok': False, 'error': str(ex)}), 500
 # ==== OPTI ROUTES LIST END ====
 
-from opti_routes import bp as _opti_bp\napp.register_blueprint(_opti_bp)
+from opti_routes import bp as _opti_bp
+app.register_blueprint(_opti_bp)
 
 
 try:
@@ -383,4 +392,3 @@ def _opti_public_routes():
     rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
     return jsonify({'ok': True, 'routes': rules}), 200
 # ==== OPTI PUBLIC ROUTES END ====
-
