@@ -3,6 +3,13 @@ import os
 
 app = Flask(__name__)
 
+from opti_routes import bp as _opti_bp
+app.register_blueprint(_opti_bp)
+@app.route('/api/routes', methods=['GET'])
+def api_routes_direct():
+    from flask import jsonify
+    rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
+    return jsonify({'ok': True, 'routes': rules}), 200
 # --- Security headers (strict CSP/CORS per policy) ---
 ALLOWED = {"https://optilovesinvest.com", "https://www.optilovesinvest.com"}
 CSP = "default-src 'none'; connect-src 'self' https://optilovesinvest.com https://www.optilovesinvest.com; img-src 'self' data: https:; script-src 'self'; style-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'"
@@ -366,4 +373,5 @@ def api_routes_direct():
     from flask import jsonify
     rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
     return jsonify({'ok': True, 'routes': rules}), 200
+
 
