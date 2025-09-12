@@ -81,7 +81,7 @@ def payment_webhook():
             with conn.cursor() as cur:
                 cur.execute("""
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ INSERT\ INTO\ orders\ \(id,\ property_id,\ wallet,\ quantity,\ unit_price_usd,\ total_usd,\ status\)\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ VALUES\ \(%s,%s,%s,%s,%s,%s,'settled'\)\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ON\ CONFLICT\ \(id\)\ DO\ UPDATE\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ SET\ unit_price_usd=EXCLUDED\.unit_price_usd,\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ total_usd\ \ \ \ \ =EXCLUDED\.total_usd,\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ quantity\ \ \ \ \ \ =EXCLUDED\.quantity,\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ property_id\ \ \ =EXCLUDED\.property_id,\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ wallet\ \ \ \ \ \ \ \ =EXCLUDED\.wallet,\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ status\ \ \ \ \ \ \ \ ='settled';
-                """, (order_id, property_id, wallet, quantity, float(unit_price), total_usd))
+                """, (order_id, property_id, wallet, quantity, unit_cents, total_cents, status_db)
 
         return jsonify({'ok': True, 'order_id': order_id, 'unit_price_usd': float(unit_price), 'total_usd': total_usd}), 200
     except Exception:
@@ -232,6 +232,10 @@ def _parse_mints_env():
         app.logger.warning("OPTILOVES_MINTS parse failed: %s", _e)
     return out
 # ==== OPTI MINT PARSER END ====
+
+
+
+
 
 
 
