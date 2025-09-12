@@ -84,9 +84,13 @@ def payment_webhook():
                 """, (order_id, property_id, wallet, quantity, unit_cents, total_cents, status_db)
 
         return jsonify({'ok': True, 'order_id': order_id, 'unit_price_usd': float(unit_price), 'total_usd': total_usd}), 200
-    except Exception:
-        app.logger.exception('payment_webhook failed')
-        return jsonify({'error':'internal'}), 500
+    except Exception as ex:
+    app.logger.exception('payment_webhook failed')
+    # show error only when explicitly requested
+    from flask import request
+    if request.headers.get('X-Opti-Debug') == '1':
+        return jsonify({'error': str(ex)[:300]}), 500
+    return jsonify({'error':'internal'}), 500
 
 # WSGI entry
 if __name__ == '__main__':
@@ -232,6 +236,7 @@ def _parse_mints_env():
         app.logger.warning("OPTILOVES_MINTS parse failed: %s", _e)
     return out
 # ==== OPTI MINT PARSER END ====
+
 
 
 
