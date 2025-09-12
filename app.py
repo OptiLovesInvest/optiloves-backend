@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+﻿from flask import Flask, request, jsonify
 import os
 
 app = Flask(__name__)
@@ -384,23 +384,3 @@ def _opti_public_routes():
     return jsonify({'ok': True, 'routes': rules}), 200
 # ==== OPTI PUBLIC ROUTES END ====
 
-
-# ==== OPTI PAYMENT HELPERS (stability) ====
-from decimal import Decimal, ROUND_HALF_UP
-def normalize_status(s):
-    s = (s or "").lower()
-    if s in ("completed","succeeded","paid","settled"): return "completed"
-    if s in ("pending","requires_action","processing"): return "pending"
-    if s in ("failed","canceled","cancelled","refunded"): return "failed"
-    return "pending"
-
-def compute_unit_price(payload):
-    try:
-        amount_cents = int(payload.get("amount_cents") or payload.get("total_cents") or 0)
-        qty = int(payload.get("quantity") or payload.get("qty") or 1)
-        if qty <= 0: qty = 1
-        price = Decimal(amount_cents) / Decimal(100*qty)
-        return float(price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-    except Exception:
-        return None
-# ==== /OPTI PAYMENT HELPERS ====
