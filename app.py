@@ -112,8 +112,10 @@ try:
     if 'opti' in app.blueprints:
         app.register_blueprint(_opti_bp, name='opti2')
     else:
-        app.register_blueprint(_opti_bp)
+        if 'opti' not in app.blueprints:
+            app.register_blueprint(_opti_bp)
 except Exception as _e:
     app.logger.warning("blueprint-register failed: %s", _e)
+
 
 
