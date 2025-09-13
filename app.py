@@ -3,9 +3,16 @@ import os
 
 app = Flask(__name__)
 # === canonical payment webhook (guarded) ===
-if 'payment_webhook' not in app.view_functions:
-    @app.route('/webhooks/payment', methods=['POST'])
-    def payment_webhook():
+# ensure endpoint uniqueness at import time
+try:
+    app.view_functions.pop('payment_webhook', None)
+    app.view_functions.pop('payment_webhook_v2', None)
+except Exception:
+    pass
+
+if 'payment_webhook_v2' not in app.view_functions:
+    @app.route('/webhooks/payment', methods=['POST'], endpoint='payment_webhook_v2')
+    def payment_webhook_v2():
         from flask import request, jsonify
         payload = request.get_json(silent=True) or {}
         order_id = (payload.get("order_id") or "").strip()
@@ -23,7 +30,7 @@ if 'payment_webhook' not in app.view_functions:
             app.logger.warning("invalid payload: %r", payload)
             return jsonify({"error":"invalid payload","got":payload}), 400
         unit_price_usd = round(int(unit_price_cents)/100, 2)
-        # TODO: your DB insert/update using order_id, property_id, owner, quantity, unit_price_usd, status
+        # TODO: persist to DB
         return jsonify({"ok": True, "order_id": order_id, "unit_price_usd": unit_price_usd, "status": status}), 200
 # === end canonical ===
 
@@ -84,7 +91,7 @@ def _price(pid: str) -> Decimal:
     return UNIT_PRICE_USD.get(pid or 'kin-001', Decimal('50'))
 
 @app.post('/webhooks/payment')
-def payment_webhook():
+def payment_webhook_disabled():
     try:
         data = request.get_json(silent=True) or {}
         order_id    = data.get('order_id')
@@ -287,8 +294,8 @@ def _parse_mints_env():
 
 
 # ==== OPTI WEBHOOK REWRITE START ====
-@app.route('/webhooks/payment', methods=['POST'])
-def payment_webhook():
+# [disabled dup] @app.route('/webhooks/payment', methods=['POST'])
+def payment_webhook_disabled():
 
     # ==== OPTI: payload normalizer (stability) ====
     from decimal import Decimal, ROUND_HALF_UP
@@ -477,6 +484,7 @@ def _opti_public_routes():
     rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
     return jsonify({'ok': True, 'routes': rules}), 200
 # ==== OPTI PUBLIC ROUTES END ====
+
 
 
 
