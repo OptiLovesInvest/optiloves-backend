@@ -1,7 +1,7 @@
 ﻿from flask import Blueprint, request, jsonify
 import os, psycopg2
 
-bp = Blueprint('opti', __name__)
+bp = Blueprint('opti_routes', __name__)
 
 @bp.route('/api/routes', methods=['GET'])
 def api_routes():
@@ -82,3 +82,4 @@ def payment_webhook2():
         if request.headers.get('X-Opti-Debug') == '1':
             return jsonify({'error': str(ex)}), 500
         return jsonify({'error':'internal'}), 500
+

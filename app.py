@@ -103,7 +103,14 @@ if 'payment_webhook_v3' not in app.view_functions:
 # === end canonical ===
 
 from opti_routes import bp as _opti_bp
-app.register_blueprint(_opti_bp)
+try:
+    if 'opti' in app.blueprints:
+        # register with a different public name if 'opti' is already present
+        app.register_blueprint(_opti_bp, name='opti2')
+    else:
+        app.register_blueprint(_opti_bp)
+except Exception as _e:
+    app.logger.warning("blueprint-register failed: %s", _e)
 @app.route('/api/routes', methods=['GET'])
 def api_routes_direct():
     from flask import jsonify
@@ -527,12 +534,24 @@ def api_routes():
 # ==== OPTI ROUTES LIST END ====
 
 from opti_routes import bp as _opti_bp
-app.register_blueprint(_opti_bp)
-
-
+try:
+    if 'opti' in app.blueprints:
+        # register with a different public name if 'opti' is already present
+        app.register_blueprint(_opti_bp, name='opti2')
+    else:
+        app.register_blueprint(_opti_bp)
+except Exception as _e:
+    app.logger.warning("blueprint-register failed: %s", _e)
 try:
     from opti_routes import bp as _opti_bp
-    app.register_blueprint(_opti_bp)
+try:
+    if 'opti' in app.blueprints:
+        # register with a different public name if 'opti' is already present
+        app.register_blueprint(_opti_bp, name='opti2')
+    else:
+        app.register_blueprint(_opti_bp)
+except Exception as _e:
+    app.logger.warning("blueprint-register failed: %s", _e)
 except Exception as _e:
     pass
 
@@ -552,6 +571,7 @@ def _opti_public_routes():
     rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
     return jsonify({'ok': True, 'routes': rules}), 200
 # ==== OPTI PUBLIC ROUTES END ====
+
 
 
 
