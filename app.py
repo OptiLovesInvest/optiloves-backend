@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+﻿from flask import Flask, request, jsonify
 import os
 
 app = Flask(__name__)
@@ -323,10 +323,8 @@ def payment_webhook():
 
     # Minimal validation
     if not order_id or not property_id or not owner or quantity <= 0:
-        # Show details only when explicitly requested
-        if request.headers.get('X-Opti-Debug') == '1':
-            return jsonify({'error':'invalid payload','need':['order_id','property_id','owner','quantity>0'],'got':payload}), 400
-        return jsonify({'error':'invalid payload'}), 400
+        app.logger.warning("invalid payload: %r", payload)
+        return jsonify({'error':'invalid payload','need':['order_id','property_id','owner','quantity>0'],'got':payload}), 400
     # ==== /OPTI normalizer ====
     try:
         from flask import request, jsonify
@@ -455,3 +453,4 @@ def _opti_public_routes():
     rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
     return jsonify({'ok': True, 'routes': rules}), 200
 # ==== OPTI PUBLIC ROUTES END ====
+
