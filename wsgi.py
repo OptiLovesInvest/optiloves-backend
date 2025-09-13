@@ -115,3 +115,4 @@ def _opti_public_routes():
 @app.route('/_routes', methods=['GET'])
 def _opti_public_routes_alt():
     return _opti_public_routes()
+

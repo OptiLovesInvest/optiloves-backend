@@ -1,4 +1,4 @@
-import os, sys
+﻿import os, sys
 from flask import jsonify, request
 from app import app as app   # <-- imports your existing Flask app object
 
@@ -72,4 +72,8 @@ def opti_portfolio(owner):
                 item.update(meta)
             items.append(item)
     return jsonify({'owner': owner, 'items': items, 'source': 'rpc'}), 200
-# ==== /PORTFOLIO ROUTE ====
+# ==== /PORTFOLIO ROUTE ====@app.route('/routes', methods=['GET'])
+def _opti_public_routes():
+    from flask import jsonify
+    rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
+    return jsonify({'ok': True, 'routes': rules}), 200
