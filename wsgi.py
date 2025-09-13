@@ -99,3 +99,19 @@ if os.environ.get("OPTI_DEBUG_ROUTES") == "1":
             data.append({"rule": str(r), "endpoint": r.endpoint, "methods": methods})
         return {"routes": data}
 # ==== /OPTI ROUTES DEBUG ====
+
+@app.after_request
+def _opti_hdr(resp):
+    import os
+    resp.headers['X-Opti-Entrypoint'] = 'wsgi:app'
+    resp.headers['X-Opti-Commit'] = os.environ.get('RENDER_GIT_COMMIT','unknown')
+    return resp
+@app.route('/routes', methods=['GET'])
+def _opti_public_routes():
+    from flask import jsonify
+    rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
+    return jsonify({'ok': True, 'routes': rules}), 200
+
+@app.route('/_routes', methods=['GET'])
+def _opti_public_routes_alt():
+    return _opti_public_routes()
