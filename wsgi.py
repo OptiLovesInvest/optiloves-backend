@@ -116,3 +116,8 @@ def _opti_public_routes():
 def _opti_public_routes_alt():
     return _opti_public_routes()
 
+
+@app.after_request
+def _opti_marker_after_request(resp):
+    resp.headers['X-Opti-Marker'] = 'wsgi.py-marker'
+    return resp

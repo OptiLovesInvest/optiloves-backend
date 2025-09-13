@@ -77,3 +77,8 @@ def _opti_public_routes():
     from flask import jsonify
     rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
     return jsonify({'ok': True, 'routes': rules}), 200
+
+@app.after_request
+def _opti_marker_after_request(resp):
+    resp.headers['X-Opti-Marker'] = 'wsgi_main.py-marker'
+    return resp
