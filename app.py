@@ -108,7 +108,13 @@ try:
         # register with a different public name if 'opti' is already present
         app.register_blueprint(_opti_bp, name='opti2')
     else:
+try:
+    if 'opti' in app.blueprints:
+        app.register_blueprint(_opti_bp, name='opti2')
+    else:
         app.register_blueprint(_opti_bp)
+except Exception as _e:
+    app.logger.warning("blueprint-register failed: %s", _e)
 except Exception as _e:
     app.logger.warning("blueprint-register failed: %s", _e)
 @app.route('/api/routes', methods=['GET'])
@@ -539,7 +545,13 @@ try:
         # register with a different public name if 'opti' is already present
         app.register_blueprint(_opti_bp, name='opti2')
     else:
+try:
+    if 'opti' in app.blueprints:
+        app.register_blueprint(_opti_bp, name='opti2')
+    else:
         app.register_blueprint(_opti_bp)
+except Exception as _e:
+    app.logger.warning("blueprint-register failed: %s", _e)
 except Exception as _e:
     app.logger.warning("blueprint-register failed: %s", _e)
 try:
@@ -549,7 +561,13 @@ try:
         # register with a different public name if 'opti' is already present
         app.register_blueprint(_opti_bp, name='opti2')
     else:
+try:
+    if 'opti' in app.blueprints:
+        app.register_blueprint(_opti_bp, name='opti2')
+    else:
         app.register_blueprint(_opti_bp)
+except Exception as _e:
+    app.logger.warning("blueprint-register failed: %s", _e)
 except Exception as _e:
     app.logger.warning("blueprint-register failed: %s", _e)
 except Exception as _e:
@@ -571,6 +589,7 @@ def _opti_public_routes():
     rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
     return jsonify({'ok': True, 'routes': rules}), 200
 # ==== OPTI PUBLIC ROUTES END ====
+
 
 
 
