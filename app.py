@@ -2,6 +2,30 @@
 import os
 
 app = Flask(__name__)
+# === canonical payment webhook (guarded) ===
+if 'payment_webhook' not in app.view_functions:
+    @app.route('/webhooks/payment', methods=['POST'])
+    def payment_webhook():
+        from flask import request, jsonify
+        payload = request.get_json(silent=True) or {}
+        order_id = (payload.get("order_id") or "").strip()
+        property_id = (payload.get("property_id") or "").strip()
+        owner = (payload.get("owner") or "").strip()
+        try:
+            quantity = int(payload.get("quantity", 0))
+        except (ValueError, TypeError):
+            quantity = 0
+        unit_price_cents = payload.get("unit_price_cents")
+        status_in = (payload.get("status") or "").lower()
+        status_map = {"settled":"completed","completed":"completed","pending":"pending"}
+        status = status_map.get(status_in, "pending")
+        if not order_id or not property_id or not owner or quantity <= 0 or unit_price_cents is None:
+            app.logger.warning("invalid payload: %r", payload)
+            return jsonify({"error":"invalid payload","got":payload}), 400
+        unit_price_usd = round(int(unit_price_cents)/100, 2)
+        # TODO: your DB insert/update using order_id, property_id, owner, quantity, unit_price_usd, status
+        return jsonify({"ok": True, "order_id": order_id, "unit_price_usd": unit_price_usd, "status": status}), 200
+# === end canonical ===
 
 from opti_routes import bp as _opti_bp
 app.register_blueprint(_opti_bp)
@@ -453,5 +477,6 @@ def _opti_public_routes():
     rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
     return jsonify({'ok': True, 'routes': rules}), 200
 # ==== OPTI PUBLIC ROUTES END ====
+
 
 
