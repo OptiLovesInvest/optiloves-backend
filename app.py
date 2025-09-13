@@ -2,6 +2,12 @@
 import os
 
 app = Flask(__name__)
+@app.after_request
+def _opti_marker_after_request(resp):
+    import os
+    resp.headers['X-Opti-Marker'] = 'app.py-v3'
+    resp.headers['X-Opti-Commit'] = os.environ.get('RENDER_GIT_COMMIT','unknown')
+    return resp
 # === canonical payment webhook (guarded) ===
 # ensure endpoint uniqueness at import time
 try:
@@ -546,6 +552,7 @@ def _opti_public_routes():
     rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
     return jsonify({'ok': True, 'routes': rules}), 200
 # ==== OPTI PUBLIC ROUTES END ====
+
 
 
 
