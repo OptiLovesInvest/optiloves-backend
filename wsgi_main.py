@@ -1,4 +1,5 @@
-﻿import os, sys
+﻿from routes_shim import shim as _opti_shim
+import os, sys
 from flask import jsonify, request
 from app import app as app   # <-- imports your existing Flask app object
 
@@ -16,6 +17,8 @@ def _whoami():
 # ---- optional: keep the WSGI agent-header block (pre-routing) ----
 class _OptiBlockAgentsMiddleware:
     def __init__(self, app): self.app = app
+# Opti shim routes (stable)
+app.register_blueprint(_opti_shim)
     def __call__(self, environ, start_response):
         if os.environ.get('DISABLE_AGENTS','1') != '0':
             for k in environ:
@@ -27,6 +30,8 @@ class _OptiBlockAgentsMiddleware:
         return self.app(environ, start_response)
 
 app.wsgi_app = _OptiBlockAgentsMiddleware(app.wsgi_app)
+# Opti shim routes (stable)
+app.register_blueprint(_opti_shim)
 # ==== PORTFOLIO ROUTE (real, zero-deps) ====
 import os, json, urllib.request
 from flask import jsonify
@@ -82,3 +87,4 @@ def _opti_public_routes():
 def _opti_marker_after_request(resp):
     resp.headers['X-Opti-Marker'] = 'wsgi_main.py-marker'
     return resp
+
