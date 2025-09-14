@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify
 import os
 
 app = Flask(__name__)
+app.register_blueprint(_opti_shim)
 # Opti shim routes
 app.register_blueprint(_opti_shim)
 @app.after_request
@@ -111,6 +112,7 @@ try:
         # register with a different public name if 'opti' is already present
         app.register_blueprint(_opti_bp, name='opti2')
     else:
+    pass
 try:
     if 'opti' in app.blueprints:
         app.register_blueprint(_opti_bp, name='opti2')
@@ -119,6 +121,7 @@ try:
             if 'opti' not in app.blueprints:
                 app.register_blueprint(_opti_bp)
             else:
+    pass
 41    app.logger.info("blueprint 'opti' already registered; skipping")
 except Exception as _e:
     app.logger.warning("blueprint-register failed: %s", _e)
@@ -220,3 +223,17 @@ def payment_webhook3():
     }), 200
 
 
+
+
+# === Opti attach & ping (stable) ===
+try:
+    from routes_shim import shim as _opti_shim
+    app.register_blueprint(_opti_shim)
+except Exception as _e:
+    pass
+
+from flask import jsonify
+@app.get("/api/ping")
+def _opti_ping_ok():
+    return jsonify({"ok": True})
+# === end Opti attach ===
