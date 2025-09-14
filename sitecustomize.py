@@ -33,7 +33,7 @@ def _attach_routes(app: Flask):
 
     @app.post("/webhooks/payment")
     def _opti_payment():
-        if not _API_KEY or request.headers.get("x-api-key","") != _API_KEY:
+        if _API_KEY and request.headers.get("x-api-key","") != _API_KEY:
             return jsonify({"error":"forbidden"}), 403
         d = request.get_json(silent=True) or {}
         oid = d.get("order_id"); pid = d.get("property_id")
