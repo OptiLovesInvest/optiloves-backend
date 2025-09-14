@@ -18,8 +18,7 @@ def _whoami():
 class _OptiBlockAgentsMiddleware:
     def __init__(self, app): self.app = app
 # Opti shim routes (stable)
-app.register_blueprint(_opti_shim)
-    def __call__(self, environ, start_response):
+def __call__(self, environ, start_response):
         if os.environ.get('DISABLE_AGENTS','1') != '0':
             for k in environ:
                 if k.startswith('HTTP_') and k.lower().startswith('http_x_agent_'):
@@ -31,7 +30,6 @@ app.register_blueprint(_opti_shim)
 
 app.wsgi_app = _OptiBlockAgentsMiddleware(app.wsgi_app)
 # Opti shim routes (stable)
-app.register_blueprint(_opti_shim)
 # ==== PORTFOLIO ROUTE (real, zero-deps) ====
 import os, json, urllib.request
 from flask import jsonify
@@ -91,10 +89,8 @@ def _opti_marker_after_request(resp):
 
 
 # --- Opti shim (stable attach) ---
-from routes_shim import shim as _opti_shim
 try:
     app  # is there already an 'app' here?
-    app.register_blueprint(_opti_shim)
 except NameError:
     # common pattern: from app import app
     try:
@@ -109,3 +105,4 @@ except NameError:
             return __app
         app = _wrap()
 # --- end Opti shim ---
+
