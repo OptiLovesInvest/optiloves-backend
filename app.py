@@ -1,7 +1,10 @@
-﻿from flask import Flask, request, jsonify
+﻿from routes_shim import shim as _opti_shim
+from flask import Flask, request, jsonify
 import os
 
 app = Flask(__name__)
+# Opti shim routes
+app.register_blueprint(_opti_shim)
 @app.after_request
 def _opti_marker_after_request(resp):
     import os
@@ -215,3 +218,4 @@ def payment_webhook3():
         'status': status,
         'id': inserted_id
     }), 200
+
