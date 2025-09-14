@@ -260,3 +260,53 @@ try:
         if not have_pf: _app.register_blueprint(_opti_pf)
 except Exception as _e:
     pass
+# === /api/portfolio fallback (inline, idempotent) ===
+import os, json, time, urllib.request
+def _opti_rpc(url, method, params):
+    data=json.dumps({"jsonrpc":"2.0","id":1,"method":method,"params":params}).encode()
+    req=urllib.request.Request(url, data=data, headers={"Content-Type":"application/json"})
+    with urllib.request.urlopen(req, timeout=10) as r: return json.loads(r.read().decode())
+
+def _opti_rpc_url(): return os.getenv("SOLANA_RPC","https://api.mainnet-beta.solana.com")
+def _opti_mints():
+    ms=[m.strip() for m in os.getenv("OPTILOVES_MINTS","").split(",") if m.strip()]
+    return ms or ["5ihsE55yaFFZXoizZKv5xsd6YjEuvaXiiMr2FLjQztN9"]
+
+def _opti_items(owner):
+    out=[]; rpc=_opti_rpc_url()
+    for m in _opti_mints():
+        resp=_opti_rpc(rpc,"getTokenAccountsByOwner",[owner,{"mint":m},{"encoding":"jsonParsed"}])
+        total=0.0
+        for v in resp.get("result",{}).get("value",[]):
+            ui=v["account"]["data"]["parsed"]["info"]["tokenAmount"].get("uiAmount",0) or 0
+            try: total+=float(ui)
+            except: pass
+        price=float(os.getenv("OPTILOVES_BASE_PRICE_USD","50"))
+        out.append({"mint":m,"balance":total,"price":price,"estValue":round(total*price,2)})
+    return out
+
+try:
+    # Prefer existing API blueprint if present
+    bp = api  # noqa: F821 (resolved at runtime if defined above)
+except Exception:
+    bp = None
+
+if bp:
+    @bp.get("/portfolio/<owner>")
+    def opti_portfolio_owner_fallback(owner):
+        return jsonify({"owner":owner,"items":_opti_items(owner),"ts":int(time.time()*1000)})
+    @bp.get("/portfolio")
+    def opti_portfolio_query_fallback():
+        from flask import request
+        owner=(request.args.get("owner","") or "").strip()
+        return jsonify({"owner":owner,"items":_opti_items(owner),"ts":int(time.time()*1000)})
+else:
+    @app.get("/api/portfolio/<owner>")
+    def opti_portfolio_owner_fallback_app(owner):
+        return jsonify({"owner":owner,"items":_opti_items(owner),"ts":int(time.time()*1000)})
+    @app.get("/api/portfolio")
+    def opti_portfolio_query_fallback_app():
+        from flask import request
+        owner=(request.args.get("owner","") or "").strip()
+        return jsonify({"owner":owner,"items":_opti_items(owner),"ts":int(time.time()*1000)})
+# === end /api/portfolio fallback ===
