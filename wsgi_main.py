@@ -90,3 +90,22 @@ def _opti_marker_after_request(resp):
 
 
 
+# --- Opti shim (stable attach) ---
+from routes_shim import shim as _opti_shim
+try:
+    app  # is there already an 'app' here?
+    app.register_blueprint(_opti_shim)
+except NameError:
+    # common pattern: from app import app
+    try:
+        from app import app as _app
+        _app.register_blueprint(_opti_shim)
+        app = _app  # ensure Gunicorn sees 'app'
+    except Exception as _e:
+        # last resort: if a factory is used, expose a wrapped app
+        def _wrap():
+            from app import app as __app
+            __app.register_blueprint(_opti_shim)
+            return __app
+        app = _wrap()
+# --- end Opti shim ---
