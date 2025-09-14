@@ -121,3 +121,13 @@ def _opti_public_routes_alt():
 def _opti_marker_after_request(resp):
     resp.headers['X-Opti-Marker'] = 'wsgi.py-marker'
     return resp
+
+# === portfolio fallback (idempotent) ===
+try:
+    from opti_portfolio_fallback import bp as _opti_pf
+    _app = globals().get('app') or globals().get('application')
+    if _app:
+        have_pf = any(str(r.rule).startswith('/api/portfolio') for r in _app.url_map.iter_rules())
+        if not have_pf: _app.register_blueprint(_opti_pf)
+except Exception as _e:
+    pass
