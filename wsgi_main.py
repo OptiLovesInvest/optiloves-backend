@@ -167,3 +167,9 @@ def _opti_payment():
     except Exception as e:
         return jsonify({"ok":False,"error":str(e)}), 500
 # === end Opti inline routes ===
+# === portfolio fallback (idempotent) ===
+try:
+    from opti_portfolio_fallback import bp as _opti_pf
+    app.register_blueprint(_opti_pf)
+except Exception as _e:
+    pass
