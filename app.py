@@ -237,3 +237,13 @@ from flask import jsonify
 def _opti_ping_ok():
     return jsonify({"ok": True})
 # === end Opti attach ===
+# === Opti minimal ping (stable) ===
+from flask import jsonify
+try:
+    app
+    @app.get("/api/ping")
+    def _opti_ping_ok():
+        return jsonify({"ok": True})
+except NameError:
+    pass
+# === end ===
