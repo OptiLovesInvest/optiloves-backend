@@ -73,3 +73,16 @@ def _opti_payment():
         conn.close(); return jsonify({"ok":True,"order_id":oid})
     except Exception as e:
         return jsonify({"ok":False,"error":str(e)}), 500
+# === whoami diag (guarded) ===
+try:
+    app
+    from flask import jsonify
+    @app.get("/__whoami")
+    def __whoami():
+        try:
+            return jsonify({"import_name": app.import_name, "root_path": app.root_path, "module_file": __file__})
+        except Exception:
+            return jsonify({"import_name": getattr(app,"import_name",None), "module_file": __file__})
+except NameError:
+    pass
+# === end whoami ===
