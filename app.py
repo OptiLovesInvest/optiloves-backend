@@ -1,8 +1,21 @@
 ﻿from routes_shim import shim as _opti_shim
 from flask import Flask, request, jsonify
-import os
 
+hmac
 app = Flask(__name__)
+
+@app.before_request
+def _api_key_gate():
+    p = request.path or ""
+    if p.startswith("/api/"):
+        supplied = request.headers.get("x-api-key", "")
+        expected = os.environ.get("OPTI_API_KEY", "")
+        # Deny if no expected key on server
+        if not expected:
+            return {"error":"forbidden"}, 403
+        # Constant-time comparison
+        if not hmac.compare_digest(supplied, expected):
+            return {"error":"forbidden"}, 403
 app.register_blueprint(_opti_shim)
 # Opti shim routes
 app.register_blueprint(_opti_shim)
@@ -115,14 +128,5 @@ try:
         app.logger.info("blueprint already registered; skipping")
 except Exception as e:
     app.logger.exception("failed to register blueprint: %s", e)
-@app.before_request
-def _api_key_gate():
-    # Protect only /api/* endpoints
-    p = request.path or ""
-    if p.startswith("/api/"):
-        supplied = request.headers.get("x-api-key", "")
-        expected = os.environ.get("OPTI_API_KEY", "")
-        if not expected or supplied != expected:
-            return {"error":"forbidden"}, 403
 
 
