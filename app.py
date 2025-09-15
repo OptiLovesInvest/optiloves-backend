@@ -357,3 +357,13 @@ except Exception:
     pass
 # === end /api/portfolio inline fallback ===
 
+@app.before_request
+def _api_key_gate():
+    # Protect only /api/* endpoints
+    p = request.path or ""
+    if p.startswith("/api/"):
+        supplied = request.headers.get("x-api-key", "")
+        expected = os.environ.get("OPTI_API_KEY", "")
+        if not expected or supplied != expected:
+            return {"error":"forbidden"}, 403
+
