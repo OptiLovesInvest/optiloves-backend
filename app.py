@@ -310,3 +310,49 @@ else:
         owner=(request.args.get("owner","") or "").strip()
         return jsonify({"owner":owner,"items":_opti_items(owner),"ts":int(time.time()*1000)})
 # === end /api/portfolio fallback ===
+# === /api/portfolio inline fallback (idempotent) ===
+try:
+    import os, json, time, urllib.request
+    from flask import jsonify, request
+
+    def _rpc(u,m,p):
+        d=json.dumps({'jsonrpc':'2.0','id':1,'method':m,'params':p}).encode()
+        r=urllib.request.Request(u,data=d,headers={'Content-Type':'application/json'})
+        with urllib.request.urlopen(r,timeout=10) as x: return json.loads(x.read().decode())
+
+    def _rpc_url(): return os.getenv('SOLANA_RPC','https://api.mainnet-beta.solana.com')
+    def _mints():
+        ms=[m.strip() for m in os.getenv('OPTILOVES_MINTS','').split(',') if m.strip()]
+        return ms or ['5ihsE55yaFFZXoizZKv5xsd6YjEuvaXiiMr2FLjQztN9']
+
+    def _items(owner):
+        out=[]; rpc=_rpc_url()
+        for m in _mints():
+            resp=_rpc(rpc,'getTokenAccountsByOwner',[owner,{'mint':m},{'encoding':'jsonParsed'}])
+            total=0.0
+            for v in resp.get('result',{}).get('value',[]):
+                ui=v['account']['data']['parsed']['info']['tokenAmount'].get('uiAmount',0) or 0
+                try: total+=float(ui)
+                except: pass
+            price=float(os.getenv('OPTILOVES_BASE_PRICE_USD','50'))
+            out.append({'mint':m,'balance':total,'price':price,'estValue':round(total*price,2)})
+        return out
+
+    def _pf_owner(owner):
+        return jsonify({'owner':owner,'items':_items(owner),'ts':int(time.time()*1000)})
+
+    def _pf_query():
+        ow=(request.args.get('owner','') or '').strip()
+        return jsonify({'owner':ow,'items':_items(ow),'ts':int(time.time()*1000)})
+
+    # register on whichever module actually owns `app`
+    try:
+        have = any(str(r.rule).startswith('/api/portfolio') for r in app.url_map.iter_rules())
+        if not have:
+            app.add_url_rule('/api/portfolio/<owner>','opti_pf_owner',_pf_owner,methods=['GET'])
+            app.add_url_rule('/api/portfolio','opti_pf_query',_pf_query,methods=['GET'])
+    except Exception:
+        pass
+except Exception:
+    pass
+# === end /api/portfolio inline fallback ===
