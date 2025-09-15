@@ -1,5 +1,5 @@
 ﻿from routes_shim import shim as _opti_shim
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect
 
 hmac
 app = Flask(__name__)
@@ -53,7 +53,7 @@ def _to_str(x):
 if 'payment_webhook_v3' not in app.view_functions:
     @app.route('/webhooks/payment', methods=['POST'], endpoint='payment_webhook_v3')
     def payment_webhook_v3():
-        from flask import request, jsonify
+        from flask import request, jsonify, redirect
         payload = request.get_json(silent=True) or {}
 
         order_id    = _to_str(payload.get("order_id"))
@@ -150,4 +150,9 @@ class _ApiKeyGate(object):
             headers.append(("X-Opti-Gate","wrapped"))
             return start_response(status, headers, exc_info)
         return self.app(environ, _sr)
+
+@app.route("/api/portfolio/<owner>", methods=["GET"])
+def api_portfolio_owner(owner):
+    # Keep logic single-sourced: redirect to query form
+    return redirect(f"/api/portfolio?owner={owner}", code=307)
 
