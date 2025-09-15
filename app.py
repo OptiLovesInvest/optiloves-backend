@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify
 hmac
 app = Flask(__name__)
 
+app.wsgi_app = _ApiKeyGate(app.wsgi_app)
 @app.before_request
 def _api_key_gate():
     p = request.path or ""
@@ -129,4 +130,24 @@ try:
 except Exception as e:
     app.logger.exception("failed to register blueprint: %s", e)
 
+
+
+
+class _ApiKeyGate(object):
+    def __init__(self, app):
+        self.app = app
+    def __call__(self, environ, start_response):
+        path = environ.get("PATH_INFO", "") or ""
+        if path.startswith("/api/"):
+            supplied = environ.get("HTTP_X_API_KEY", "")
+            expected = os.environ.get("OPTI_API_KEY", "")
+            if not expected or not hmac.compare_digest(supplied, expected):
+                start_response("403 FORBIDDEN", [("Content-Type","application/json"),("X-Opti-Gate","wrapped")])
+                return [b"{\"error\":\"forbidden\"}"]
+        def _sr(status, headers, exc_info=None):
+            try: headers = list(headers)
+            except: headers = []
+            headers.append(("X-Opti-Gate","wrapped"))
+            return start_response(status, headers, exc_info)
+        return self.app(environ, _sr)
 
