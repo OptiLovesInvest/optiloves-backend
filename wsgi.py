@@ -1,133 +1,20 @@
-﻿from app import app  # Flask app instance must be named `app`
-# ==== OPTI CORS v20250831 (strict, idempotent) ====
-try:
-    from flask import request
-    _OPTI_ALLOWED = {"https://optilovesinvest.com","https://www.optilovesinvest.com"}
+﻿import os, hmac
+from app import app as flask_app
 
-    @app.after_request
-    def _opti_cors(resp):
-        try:
-            origin = request.headers.get("Origin", "")
-            if origin in _OPTI_ALLOWED:
-                resp.headers["Access-Control-Allow-Origin"] = origin
-                resp.headers["Access-Control-Allow-Credentials"] = "true"
-                resp.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-                resp.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
-                resp.headers["Access-Control-Max-Age"] = "86400"
-                # Ensure caches donÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢t mix origins
-                vary = resp.headers.get("Vary")
-                resp.headers["Vary"] = ("Origin" if not vary else (vary + ", Origin") if "Origin" not in vary else vary)
-        except Exception:
-            pass
-        return resp
+class ApiKeyGate(object):
+    def __init__(self, app):
+        self.app = app
+    def __call__(self, environ, start_response):
+        path = environ.get("PATH_INFO", "") or ""
+        def _start_response(status, headers, exc_info=None):
+            headers = list(headers) + [("X-Opti-Gate","wsgi")]
+            return start_response(status, headers, exc_info)
+        if path.startswith("/api/"):
+            supplied = environ.get("HTTP_X_API_KEY", "")
+            expected = os.environ.get("OPTI_API_KEY", "")
+            if not expected or not hmac.compare_digest(supplied, expected):
+                _start_response("403 FORBIDDEN", [("Content-Type","application/json")])
+                return [b"{\"error\":\"forbidden\"}"]
+        return self.app(environ, _start_response)
 
-    # Preflight for any API path (no secrets, no body)
-    def _opti_preflight(path=""):
-        from flask import Response
-        r = Response("", status=204)
-        return r
-    # Register once (safe if duplicate)
-    _reg = getattr(app, "_opti_preflight_registered", False)
-    if not _reg:
-        app.add_url_rule("/api/<path:path>", "opti_preflight_api", _opti_preflight, methods=["OPTIONS"])
-        app.add_url_rule("/api", "opti_preflight_api_root", _opti_preflight, methods=["OPTIONS"])
-        setattr(app, "_opti_preflight_registered", True)
-except Exception:
-    pass
-# ==== /OPTI CORS ====
-
-# ==== OPTI CORS v20250831 (strict, idempotent) ====
-from flask import request, Response
-_OPTI_ALLOWED = {"https://optilovesinvest.com","https://www.optilovesinvest.com"}
-
-@app.after_request
-def _opti_cors(resp):
-    try:
-        origin = request.headers.get("Origin", "")
-        if origin in _OPTI_ALLOWED:
-            resp.headers["Access-Control-Allow-Origin"] = origin
-            resp.headers["Access-Control-Allow-Credentials"] = "true"
-            resp.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-            resp.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
-            resp.headers["Access-Control-Max-Age"] = "86400"
-            vary = resp.headers.get("Vary")
-            resp.headers["Vary"] = ("Origin" if not vary else (vary + ", Origin") if "Origin" not in vary else vary)
-    except Exception:
-        pass
-    return resp
-
-def _opti_preflight(path=""):
-    return Response("", status=204)
-
-if not getattr(app, "_opti_preflight_registered", False):
-    app.add_url_rule("/api/<path:path>", "opti_preflight_api", _opti_preflight, methods=["OPTIONS"])
-    app.add_url_rule("/api", "opti_preflight_api_root", _opti_preflight, methods=["OPTIONS"])
-    setattr(app, "_opti_preflight_registered", True)
-# ==== /OPTI CORS ====
-# ==== OPTI GET shim for /api/portfolio/<owner> (temporary, reversible) ====
-import os
-from flask import request, Response, jsonify
-
-def _opti_try_forward_post(owner):
-    try:
-        import requests
-    except Exception:
-        # requests not available
-        return jsonify({"owner": owner, "items": [], "error": "requests not installed; POST-only route"}), 501
-    base = os.environ.get("EXTERNAL_BASE_URL", "https://optiloves-backend.onrender.com")
-    try:
-        r = requests.post(f"{base}/api/portfolio", json={"owner": owner}, timeout=8)
-        # mirror POST response transparently
-        ct = r.headers.get("Content-Type", "application/json")
-        return Response(response=r.content, status=r.status_code, content_type=ct)
-    except Exception as e:
-        return jsonify({"owner": owner, "items": [], "error": str(e)}), 502
-
-@app.route("/api/portfolio/<owner>", methods=["GET","OPTIONS"])
-def _opti_portfolio_get(owner):
-    if request.method == "OPTIONS":
-        return Response("", status=204)
-    return _opti_try_forward_post(owner)
-# ==== /GET shim ====
-# ==== OPTI ROUTES DEBUG (guarded) ====
-import os
-if os.environ.get("OPTI_DEBUG_ROUTES") == "1":
-    def _routes():
-        data=[]
-        for r in app.url_map.iter_rules():
-            methods = sorted(list((r.methods or set()) - {"HEAD"}))
-            data.append({"rule": str(r), "endpoint": r.endpoint, "methods": methods})
-        return {"routes": data}
-# ==== /OPTI ROUTES DEBUG ====
-
-@app.after_request
-def _opti_hdr(resp):
-    import os
-    resp.headers['X-Opti-Entrypoint'] = 'wsgi:app'
-    resp.headers['X-Opti-Commit'] = os.environ.get('RENDER_GIT_COMMIT','unknown')
-    return resp
-@app.route('/routes', methods=['GET'])
-def _opti_public_routes():
-    from flask import jsonify
-    rules = [{'rule': str(r), 'methods': sorted(list(r.methods))} for r in app.url_map.iter_rules()]
-    return jsonify({'ok': True, 'routes': rules}), 200
-
-@app.route('/_routes', methods=['GET'])
-def _opti_public_routes_alt():
-    return _opti_public_routes()
-
-
-@app.after_request
-def _opti_marker_after_request(resp):
-    resp.headers['X-Opti-Marker'] = 'wsgi.py-marker'
-    return resp
-
-# === portfolio fallback (idempotent) ===
-try:
-    from opti_portfolio_fallback import bp as _opti_pf
-    _app = globals().get('app') or globals().get('application')
-    if _app:
-        have_pf = any(str(r.rule).startswith('/api/portfolio') for r in _app.url_map.iter_rules())
-        if not have_pf: _app.register_blueprint(_opti_pf)
-except Exception as _e:
-    pass
+app = ApiKeyGate(flask_app)
