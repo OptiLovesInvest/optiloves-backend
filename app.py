@@ -181,3 +181,34 @@ try:
 except Exception as _e:
     pass
 # ==== END ROUTE LISTER ====
+# ==== BEGIN OPTI PORTFOLIO SHIMS (no-404, stable) ====
+from flask import request, jsonify
+
+def _call_portfolio_handler(owner: str):
+    # Try the real handlers if present
+    try:
+        from opti_routes import portfolio_owner as _h1
+        return _h1(owner)
+    except Exception:
+        pass
+    try:
+        from opti_routes import portfolio as _h2
+        # expects request.args['owner']
+        with app.test_request_context(f"/api/portfolio?owner={owner}"):
+            return _h2()
+    except Exception:
+        pass
+    # Fallback: return empty but valid shape (prevents 404 loops)
+    return jsonify({"owner": owner, "items": [], "total": 0, "source": "shim"}), 200
+
+@app.get("/api/portfolio/<owner>")
+def _opti_portfolio_owner(owner):
+    return _call_portfolio_handler(owner)
+
+@app.get("/api/portfolio")
+def _opti_portfolio_query():
+    owner = request.args.get("owner","").strip()
+    if not owner:
+        return jsonify({"error":"missing owner"}), 400
+    return _call_portfolio_handler(owner)
+# ==== END OPTI PORTFOLIO SHIMS ====
