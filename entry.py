@@ -86,3 +86,23 @@ try:
 except NameError:
     pass
 # === end whoami ===
+# === BEGIN: portfolio+routes (attached to app) ===
+from flask import request, jsonify, current_app as _ca
+
+@app.get('/api/routes')
+def _list_routes():
+    rules=[{'rule':str(r),'endpoint':r.endpoint,'methods':sorted(list(r.methods))} for r in _ca.url_map.iter_rules()]
+    return {'ok':True,'routes':rules},200
+
+@app.get('/api/portfolio/<owner>')
+def _pf_owner(owner):
+    owner=(owner or '').strip()
+    if not owner: return jsonify({'owner':'','items':[],'total':0,'source':'attached'}),200
+    return jsonify({'owner':owner,'items':[],'total':0,'source':'attached'}),200
+
+@app.get('/api/portfolio')
+def _pf_q():
+    owner=(request.args.get('owner','') or '').strip()
+    if not owner: return jsonify({'error':'missing owner'}),400
+    return jsonify({'owner':owner,'items':[],'total':0,'source':'attached'}),200
+# === END: portfolio+routes ===
