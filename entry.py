@@ -1,4 +1,4 @@
-# entry.py — single source of truth for Gunicorn
+# entry.py â€” single source of truth for Gunicorn
 # Tries to import your Flask app object no matter its name/location,
 # then ensures the KYC blueprint is registered, plus a health check.
 
@@ -18,7 +18,8 @@ if "kyc" not in app.blueprints:
 
 @app.get("/_health")
 def _health():
-    return {"ok": True, "service": "backend"}from flask import jsonify, request
+    return {"ok": True, "service": "backend"}
+from flask import jsonify, request
 import os
 try:
     import psycopg2
