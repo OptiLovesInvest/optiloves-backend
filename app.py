@@ -166,3 +166,18 @@ def api_portfolio_owner(owner):
     # Keep logic single-sourced: redirect to query form
     return redirect(f"/api/portfolio?owner={owner}", code=307)
 
+
+# ==== BEGIN ROUTE LISTER (temporary) ====
+try:
+    @app.get("/_routes")
+    def _route_list():
+        try:
+            rules = []
+            for r in app.url_map.iter_rules():
+                rules.append({"rule": str(r), "endpoint": r.endpoint, "methods": sorted(list(r.methods))})
+            return {"ok": True, "routes": rules}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}, 500
+except Exception as _e:
+    pass
+# ==== END ROUTE LISTER ====
