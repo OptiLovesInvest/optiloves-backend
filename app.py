@@ -211,4 +211,24 @@ def _opti_portfolio_query():
     if not owner:
         return jsonify({"error":"missing owner"}), 400
     return _call_portfolio_handler(owner)
-# ==== END OPTI PORTFOLIO SHIMS ====
+# ==== END OPTI PORTFOLIO SHIMS ====# ==== BEGIN OPTI PORTFOLIO (WSGI SHIM) ====
+from flask import request, jsonify
+
+def _opti_get_portfolio(owner: str):
+    owner = (owner or "").strip()
+    if not owner:
+        return {"owner":"", "items":[], "total":0, "source":"wsgi_shim"}
+    # TODO: replace with real RPC lookup; stable placeholder avoids 404
+    return {"owner": owner, "items": [], "total": 0, "source": "wsgi_shim"}
+
+@app.get("/api/portfolio/<owner>")
+def opti_portfolio_owner(owner):
+    return jsonify(_opti_get_portfolio(owner)), 200
+
+@app.get("/api/portfolio")
+def opti_portfolio_query():
+    owner = request.args.get("owner","")
+    if not owner:
+        return jsonify({"error":"missing owner"}), 400
+    return jsonify(_opti_get_portfolio(owner)), 200
+# ==== END OPTI PORTFOLIO (WSGI SHIM) ====
