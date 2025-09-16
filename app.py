@@ -232,3 +232,8 @@ def opti_portfolio_query():
         return jsonify({"error":"missing owner"}), 400
     return jsonify(_opti_get_portfolio(owner)), 200
 # ==== END OPTI PORTFOLIO (WSGI SHIM) ====
+# ==== BEGIN HELLO PROBE ====
+@app.get("/api/hello")
+def _hello_probe():
+    return {"ok": True, "source": "app.py decorator"}, 200
+# ==== END HELLO PROBE ====
