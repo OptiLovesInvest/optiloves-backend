@@ -237,3 +237,15 @@ def opti_portfolio_query():
 def _hello_probe():
     return {"ok": True, "source": "app.py decorator"}, 200
 # ==== END HELLO PROBE ====
+# -- ensure routes_shim is mounted under /api (idempotent) --
+try:
+    from routes_shim import shim
+    try:
+        app.register_blueprint(shim, url_prefix="/api")
+    except Exception as e:
+        # already registered or harmless error
+        try: app.logger.warning("routes_shim not (re)registered: %s", e)
+        except Exception: pass
+except Exception as e:
+    try: app.logger.warning("routes_shim import failed: %s", e)
+    except Exception: pass
