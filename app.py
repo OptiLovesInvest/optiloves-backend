@@ -1,8 +1,12 @@
-﻿from routes_shim import shim as _opti_shim
+from opti_routes import opti_routes`nfrom routes_shim import shim as _opti_shim
 from flask import Flask, request, jsonify, redirect
 
 hmac
 app = Flask(__name__)
+try:
+    app.register_blueprint(opti_routes, url_prefix="/api")
+except Exception as e:
+    app.logger.warning("opti_routes blueprint not loaded: %s", e)
 
 app.wsgi_app = _ApiKeyGate(app.wsgi_app)
 @app.before_request
