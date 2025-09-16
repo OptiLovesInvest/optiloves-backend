@@ -83,3 +83,23 @@ def payment_webhook2():
             return jsonify({'error': str(ex)}), 500
         return jsonify({'error':'internal'}), 500
 
+# == BEGIN: portfolio+routes (opti_routes) ==
+from flask import request, jsonify, current_app as _ca
+
+@opti_routes.get('/portfolio/<owner>')
+def _opti_portfolio_owner(owner):
+    owner=(owner or '').strip()
+    if not owner: return jsonify({'owner':'','items':[],'total':0,'source':'opti'}),200
+    return jsonify({'owner':owner,'items':[],'total':0,'source':'opti'}),200
+
+@opti_routes.get('/portfolio')
+def _opti_portfolio_q():
+    owner=(request.args.get('owner','') or '').strip()
+    if not owner: return jsonify({'error':'missing owner'}),400
+    return jsonify({'owner':owner,'items':[],'total':0,'source':'opti'}),200
+
+@opti_routes.get('/routes')
+def _opti_routes_list():
+    rules=[{'rule':str(r),'endpoint':r.endpoint,'methods':sorted(list(r.methods))} for r in _ca.url_map.iter_rules()]
+    return {'ok':True,'routes':rules},200
+# == END: portfolio+routes (opti_routes) ==

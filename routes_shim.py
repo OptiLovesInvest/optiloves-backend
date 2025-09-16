@@ -84,3 +84,23 @@ def _portfolio_query():
         return jsonify({'error':'missing owner'}), 400
     return jsonify({'owner': owner, 'items': [], 'total': 0, 'source': 'shim'}), 200
 # ==== END PORTFOLIO (stable shim) ====
+# == BEGIN: portfolio+routes (shim) ==
+from flask import request, jsonify, current_app as _ca
+
+@shim.get('/portfolio/<owner>')
+def _shim_portfolio_owner(owner):
+    owner=(owner or '').strip()
+    if not owner: return jsonify({'owner':'','items':[],'total':0,'source':'shim'}),200
+    return jsonify({'owner':owner,'items':[],'total':0,'source':'shim'}),200
+
+@shim.get('/portfolio')
+def _shim_portfolio_q():
+    owner=(request.args.get('owner','') or '').strip()
+    if not owner: return jsonify({'error':'missing owner'}),400
+    return jsonify({'owner':owner,'items':[],'total':0,'source':'shim'}),200
+
+@shim.get('/routes')
+def _shim_routes():
+    rules=[{'rule':str(r),'endpoint':r.endpoint,'methods':sorted(list(r.methods))} for r in _ca.url_map.iter_rules()]
+    return {'ok':True,'routes':rules},200
+# == END: portfolio+routes (shim) ==

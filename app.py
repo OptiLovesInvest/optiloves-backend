@@ -249,3 +249,24 @@ try:
 except Exception as e:
     try: app.logger.warning("routes_shim import failed: %s", e)
     except Exception: pass
+# == BEGIN: force-mount blueprints ==
+try:
+    from routes_shim import shim
+    try: app.register_blueprint(shim, url_prefix="/api")
+    except Exception as e: 
+        try: app.logger.warning("shim not (re)registered: %s", e)
+        except: pass
+except Exception as e:
+    try: app.logger.warning("routes_shim import failed: %s", e)
+    except: pass
+
+try:
+    from opti_routes import opti_routes
+    try: app.register_blueprint(opti_routes, url_prefix="/api")
+    except Exception as e:
+        try: app.logger.warning("opti_routes not (re)registered: %s", e)
+        except: pass
+except Exception as e:
+    try: app.logger.warning("opti_routes import failed: %s", e)
+    except: pass
+# == END: force-mount blueprints ==
