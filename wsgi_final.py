@@ -89,3 +89,59 @@ try:
     try: app.register_blueprint(opti_routes, url_prefix="/api")
     except Exception: pass
 except Exception: pass
+# === webhooks: payment (stable) ===
+import time, threading
+ORDERS_FILE = os.environ.get("ORDERS_FILE","/tmp/orders.json")
+_ORDERS_LOCK = threading.Lock()
+
+def _auth_ok(req):
+    key = req.headers.get("x-api-key","")
+    return (not API_KEY) or (key == API_KEY)
+
+def _load_orders():
+    try:
+        with open(ORDERS_FILE,"r") as f: return json.load(f)
+    except Exception:
+        return []
+
+def _save_orders(orders):
+    try:
+        with open(ORDERS_FILE,"w") as f: json.dump(orders,f)
+    except Exception:
+        pass
+
+def _parse_order(req):
+    data = req.get_json(silent=True) or {}
+    reqd = ["order_id","property_id","owner","quantity","unit_price_usd","status"]
+    missing = [k for k in reqd if data.get(k) in [None,""]]
+    if missing: return None, {"ok":False,"error":"missing fields","missing":missing}, 400
+    try:
+        q = float(data["quantity"]); p = float(data["unit_price_usd"])
+    except Exception:
+        return None, {"ok":False,"error":"bad numeric"}, 400
+    data["amount_usd"] = round(q*p, 2)
+    data["ts"] = int(time.time())
+    return data, None, None
+
+@app.post("/webhooks/payment")
+@app.post("/api/webhooks/payment")
+def _wh_payment():
+    if not _auth_ok(request):
+        return jsonify({"ok":False,"error":"unauthorized"}), 401
+    data, err, code = _parse_order(request)
+    if err: return jsonify(err), code
+    with _ORDERS_LOCK:
+        orders = _load_orders()
+        for i,o in enumerate(orders):
+            if o.get("order_id")==data["order_id"]:
+                orders[i]=data; break
+        else:
+            orders.append(data)
+        _save_orders(orders)
+    return jsonify({"ok":True,"order":data}), 200
+
+@app.get("/api/orders")
+def _orders_list():
+    if not _auth_ok(request): return jsonify({"ok":False,"error":"unauthorized"}), 401
+    return jsonify({"ok":True,"orders": _load_orders()}), 200
+# === end webhooks ===
