@@ -67,3 +67,20 @@ def payment_webhook():
         return jsonify({"ok":True,"order_id":order_id})
     except Exception as e:
         return jsonify({"ok":False,"error":str(e)}), 500
+# ==== BEGIN PORTFOLIO (stable shim) ====
+from flask import request, jsonify
+
+@shim.get('/portfolio/<owner>')
+def _portfolio_owner(owner):
+    owner = (owner or '').strip()
+    if not owner:
+        return jsonify({'owner':'', 'items':[], 'total':0, 'source':'shim'}), 200
+    return jsonify({'owner': owner, 'items': [], 'total': 0, 'source': 'shim'}), 200
+
+@shim.get('/portfolio')
+def _portfolio_query():
+    owner = request.args.get('owner','').strip()
+    if not owner:
+        return jsonify({'error':'missing owner'}), 400
+    return jsonify({'owner': owner, 'items': [], 'total': 0, 'source': 'shim'}), 200
+# ==== END PORTFOLIO (stable shim) ====
