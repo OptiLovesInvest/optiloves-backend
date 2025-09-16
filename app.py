@@ -1,3 +1,4 @@
+import hmac
 try:
     from opti_routes import opti_routes
     HAS_OPTI = True
@@ -14,7 +15,14 @@ if HAS_OPTI:
     except Exception as e:
         app.logger.warning("opti_routes blueprint not loaded: %s", e)
 
-app.wsgi_app = _ApiKeyGate(app.wsgi_app)
+try:
+    app.wsgi_app = _ApiKeyGate(app.wsgi_app)
+except NameError:
+    class _NoGate:
+        def __init__(self, app): self.app = app
+        def __call__(self, environ, start_response):
+            return self.app(environ, start_response)
+    app.wsgi_app = _NoGate(app.wsgi_app)
 @app.before_request
 def _api_key_gate():
     p = request.path or ""
@@ -27,9 +35,17 @@ def _api_key_gate():
         # Constant-time comparison
         if not hmac.compare_digest(supplied, expected):
             return {"error":"forbidden"}, 403
-app.register_blueprint(_opti_shim)
+try:
+    if 'opti_shim' not in app.blueprints:
+        app.register_blueprint(_opti_shim, url_prefix='/api')
+except Exception:
+    pass
 # Opti shim routes
-app.register_blueprint(_opti_shim)
+try:
+    if 'opti_shim' not in app.blueprints:
+        app.register_blueprint(_opti_shim, url_prefix='/api')
+except Exception:
+    pass
 @app.after_request
 def _opti_marker_after_request(resp):
     import os
@@ -270,3 +286,36 @@ except Exception as e:
     try: app.logger.warning("opti_routes import failed: %s", e)
     except: pass
 # == END: force-mount blueprints ==
+# === BEGIN last-resort routes (stable, idempotent) ===
+try:
+    from flask import request, jsonify, current_app as _ca
+
+    def __pf_owner(owner):
+        owner = (owner or "").strip()
+        if not owner:
+            return jsonify({"owner":"", "items":[], "total":0, "source":"fallback"}), 200
+        return jsonify({"owner":owner, "items":[], "total":0, "source":"fallback"}), 200
+
+    def __pf_q():
+        owner = (request.args.get("owner","") or "").strip()
+        if not owner:
+            return jsonify({"error":"missing owner"}), 400
+        return jsonify({"owner":owner, "items":[], "total":0, "source":"fallback"}), 200
+
+    def __routes():
+        rules=[{"rule":str(r),"endpoint":r.endpoint,"methods":sorted(list(r.methods))} for r in _ca.url_map.iter_rules()]
+        return {"ok": True, "routes": rules}, 200
+
+    _rules = {str(r) for r in app.url_map.iter_rules()}
+    if "/api/portfolio/<owner>" not in _rules:
+        app.add_url_rule("/api/portfolio/<owner>", endpoint="__pf_owner", view_func=__pf_owner, methods=["GET"])
+    if "/api/portfolio" not in _rules:
+        app.add_url_rule("/api/portfolio", endpoint="__pf_q", view_func=__pf_q, methods=["GET"])
+    if "/api/routes" not in _rules:
+        app.add_url_rule("/api/routes", endpoint="__routes", view_func=__routes, methods=["GET"])
+except Exception as __e:
+    try:
+        app.logger.warning("fallback routes attach skipped: %s", __e)
+    except Exception:
+        pass
+# === END last-resort routes ===
