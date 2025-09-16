@@ -1,0 +1,8 @@
+﻿services:
+  - type: web
+    name: optiloves-backend
+    env: python
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi_main:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+    autoDeploy: true
