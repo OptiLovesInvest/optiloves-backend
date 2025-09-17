@@ -247,3 +247,95 @@ def _buy_submit():
 def _thank_you():
     oid = request.args.get("order_id","")
     return Response(f"<h1>Thank you</h1><p>Order: {oid}</p><p>We have recorded your purchase.</p>", mimetype="text/html")
+# --- Stripe Checkout + Webhook (public) ---
+try:
+    import stripe, os
+    STRIPE_SECRET = os.environ.get("STRIPE_SECRET_KEY","")
+    STRIPE_PRICE  = os.environ.get("STRIPE_PRICE_ID","")         # optional: use a pre-made Price
+    STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET","")
+    if STRIPE_SECRET:
+        stripe.api_key = STRIPE_SECRET
+
+        @app.post("/buy/checkout")   # PUBLIC (no API key)
+        def _stripe_checkout_public():
+            from flask import request, jsonify
+            price, status = _public_price_status()
+            # accept form or JSON
+            owner = (request.form.get("owner") or (request.get_json(silent=True) or {}).get("owner") or "").strip()
+            qty_raw = request.form.get("quantity") or (request.get_json(silent=True) or {}).get("quantity")
+            try: qty = int(float(qty_raw or 1))
+            except: qty = 1
+            if status != "live":
+                return jsonify({"ok":False,"error":"not_live"}), 400
+            if not owner:
+                return jsonify({"ok":False,"error":"owner_required"}), 400
+
+            base = request.host_url.rstrip("/")
+            success = f"{base}/thank-you?order_id={{CHECKOUT_SESSION_ID}}"
+            cancel  = f"{base}/buy/nsele-hq"
+
+            args = dict(
+                mode="payment",
+                success_url=success,
+                cancel_url=cancel,
+                metadata={"owner": owner, "property_id":"kin-001", "quantity": str(qty), "unit_price_usd": str(price)}
+            )
+            if STRIPE_PRICE:
+                args["line_items"] = [{"price": STRIPE_PRICE, "quantity": qty}]
+            else:
+                args["line_items"] = [{
+                    "price_data": {
+                        "currency": "usd",
+                        "product_data": {"name": "Nsele HQ token"},
+                        "unit_amount": int(round(price*100))
+                    },
+                    "quantity": qty
+                }]
+
+            sess = stripe.checkout.Session.create(**args)
+            return jsonify({"ok":True, "url": sess.url}), 200
+
+        @app.post("/stripe/webhook")  # PUBLIC (Stripe signs requests)
+        def _stripe_webhook_public():
+            from flask import request, jsonify
+            if not STRIPE_WEBHOOK_SECRET:
+                return jsonify({"ok":False,"error":"no_webhook_secret"}), 400
+            payload = request.data
+            sig = request.headers.get("Stripe-Signature","")
+            try:
+                event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
+            except Exception:
+                return jsonify({"ok":False,"error":"bad_signature"}), 400
+
+            if event.get("type") == "checkout.session.completed":
+                s = event["data"]["object"]
+                if (s.get("payment_status") == "paid") or (s.get("status") == "complete"):
+                    md = s.get("metadata") or {}
+                    try:
+                        q = float(md.get("quantity","1")); p = float(md.get("unit_price_usd","50"))
+                    except Exception:
+                        q, p = 1, 50.0
+                    data = {
+                        "order_id": "stripe-" + (s.get("id") or ""),
+                        "property_id": md.get("property_id","kin-001"),
+                        "owner": md.get("owner",""),
+                        "quantity": q,
+                        "unit_price_usd": p,
+                        "status": "completed",
+                        "amount_usd": round(q*p, 2),
+                        "ts": int(time.time())
+                    }
+                    try:
+                        orders = _load_orders()
+                        for i,o in enumerate(orders):
+                            if o.get("order_id")==data["order_id"]:
+                                orders[i]=data; break
+                        else:
+                            orders.append(data)
+                        _save_orders(orders)
+                    except Exception:
+                        pass
+            return {"ok":True}, 200
+except Exception:
+    pass
+# --- END Stripe ---
