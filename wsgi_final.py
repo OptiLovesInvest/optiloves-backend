@@ -152,3 +152,10 @@ try:
     app.view_functions["_public_properties"] = __public_properties_env
 except Exception:
     pass
+import os
+from flask import send_file
+_BASE = os.path.dirname(os.path.abspath(__file__))
+
+@app.get("/")
+def _site_home():
+    return send_file(os.path.join(_BASE, "index.html"))
