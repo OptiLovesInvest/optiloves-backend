@@ -120,3 +120,14 @@ def _wh_payment():
 @app.get("/api/orders")
 def _orders_list():
     return jsonify({"ok":True,"orders": _load_orders()}), 200
+@app.get("/public/properties")
+def _public_properties():
+    return {
+        "ok": True,
+        "properties": [{
+            "id": "nsele-hq",
+            "name": "Kinshasa – Nsele HQ",
+            "token_price_usd": 50,
+            "status": "coming_soon"  # change to "live" when ready
+        }]
+    }, 200
