@@ -57,3 +57,26 @@
   </footer>
 </body>
 </html>
+<script>
+fetch("/public/properties").then(r=>r.json()).then(d=>{
+  const p=(d.properties||[])[0]; if(!p) return;
+  const price=`$${p.token_price_usd}`;
+  const live=p.status==="live";
+  (document.getElementById("price")||{}).textContent=price;
+  (document.getElementById("heroPrice")||{}).textContent=price;
+  const statusEl=document.getElementById("status");
+  if(statusEl) statusEl.textContent = live ? "Available" : "Available soon";
+  const buy=document.getElementById("buyBtn");
+  if(buy){
+    if(live){
+      buy.classList.remove("bg-gray-300","text-gray-600","pointer-events-none","select-none");
+      buy.classList.add("bg-black","text-white");
+      buy.href="/buy/nsele-hq";
+    }else{
+      buy.classList.add("bg-gray-300","text-gray-600","pointer-events-none","select-none");
+      buy.classList.remove("bg-black","text-white");
+      buy.href="/kyc?next=/buy/nsele-hq";
+    }
+  }
+}).catch(()=>{});
+</script>
