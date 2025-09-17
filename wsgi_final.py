@@ -131,3 +131,24 @@ def _public_properties():
             "status": "coming_soon"  # change to "live" when ready
         }]
     }, 200
+# Env-driven public data override (no new routes)
+def __public_properties_env():
+    import os
+    try:    price = float(os.environ.get("OPTI_PUBLIC_TOKEN_PRICE_USD","50"))
+    except: price = 50.0
+    status = os.environ.get("OPTI_PUBLIC_STATUS","coming_soon")  # "live" to enable Buy
+    return {
+        "ok": True,
+        "properties": [{
+            "id": "nsele-hq",
+            "name": "Kinshasa – Nsele HQ",
+            "token_price_usd": price,
+            "status": status
+        }]
+    }, 200
+
+# Safely replace the existing view function without re-registering the route
+try:
+    app.view_functions["_public_properties"] = __public_properties_env
+except Exception:
+    pass
