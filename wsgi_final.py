@@ -159,3 +159,19 @@ _BASE = os.path.dirname(os.path.abspath(__file__))
 @app.get("/")
 def _site_home():
     return send_file(os.path.join(_BASE, "index.html"))
+import os
+from flask import send_from_directory
+_BASE = os.path.dirname(os.path.abspath(__file__))
+
+def _site_home():
+    return send_from_directory(_BASE, "index.html")
+
+# register "/" if missing; also expose "/index.html"
+_rules = {str(r) for r in app.url_map.iter_rules()}
+if "/" not in _rules:
+    app.add_url_rule("/", endpoint="_site_home", view_func=_site_home, methods=["GET"])
+
+def _site_index():
+    return send_from_directory(_BASE, "index.html")
+if "/index.html" not in _rules:
+    app.add_url_rule("/index.html", endpoint="_site_index", view_func=_site_index, methods=["GET"])
