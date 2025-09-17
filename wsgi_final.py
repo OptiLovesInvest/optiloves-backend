@@ -178,3 +178,13 @@ if "/index.html" not in _rules:
 @app.get("/buy/nsele-hq")
 def _buy_placeholder():
     return {"ok":True,"msg":"Buy flow coming soon"}, 200
+def __buy_placeholder():
+    return {"ok": True, "msg": "Buy flow coming soon"}, 200
+
+# Ensure route is present even if decorators were skipped in a prior version
+try:
+    _rules = {str(r) for r in app.url_map.iter_rules()}
+    if "/buy/nsele-hq" not in _rules:
+        app.add_url_rule("/buy/nsele-hq", endpoint="buy_nsele_hq", view_func=__buy_placeholder, methods=["GET"])
+except Exception:
+    pass
