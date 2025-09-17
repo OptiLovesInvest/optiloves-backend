@@ -188,3 +188,62 @@ try:
         app.add_url_rule("/buy/nsele-hq", endpoint="buy_nsele_hq", view_func=__buy_placeholder, methods=["GET"])
 except Exception:
     pass
+import uuid, time
+from flask import Response, redirect, url_for
+
+def _public_price_status():
+    try: price = float(os.environ.get("OPTI_PUBLIC_TOKEN_PRICE_USD","50"))
+    except: price = 50.0
+    status = os.environ.get("OPTI_PUBLIC_STATUS","coming_soon")
+    return price, status
+
+@app.get("/buy/nsele-hq")
+def _buy_page():
+    price, status = _public_price_status()
+    if status != "live":
+        return Response(f"<h1>Nsele HQ</h1><p>Price: ${price:.2f}</p><p>Not available yet.</p>", mimetype="text/html")
+    html = f"""
+<!doctype html><meta charset='utf-8'>
+<h1>Buy — Nsele HQ</h1>
+<p>Token price: <strong>${price:.2f}</strong></p>
+<form method="post" action="/buy/submit">
+  <label>Owner (wallet): <input name="owner" required style="width:360px"></label><br><br>
+  <label>Quantity: <input name="quantity" type="number" min="1" value="1" required></label><br><br>
+  <input type="hidden" name="property_id" value="kin-001">
+  <button type="submit">Place order</button>
+</form>
+"""
+    return Response(html, mimetype="text/html")
+
+@app.post("/buy/submit")
+def _buy_submit():
+    # No gateway here — demo: write order same as webhook
+    owner = (request.form.get("owner","") or "").strip()
+    qty   = float(request.form.get("quantity","0") or 0)
+    pid   = request.form.get("property_id","kin-001")
+    price, status = _public_price_status()
+    if not owner or qty <= 0:
+        return {"ok":False,"error":"owner and quantity required"}, 400
+    data = {
+        "order_id": "buy-" + uuid.uuid4().hex,
+        "property_id": pid,
+        "owner": owner,
+        "quantity": qty,
+        "unit_price_usd": price,
+        "status": "completed",
+        "amount_usd": round(qty*price,2),
+        "ts": int(time.time())
+    }
+    try:
+        # Reuse file store
+        orders = _load_orders()
+        orders.append(data)
+        _save_orders(orders)
+    except Exception:
+        pass
+    return redirect(url_for("_thank_you", order_id=data["order_id"]))
+
+@app.get("/thank-you")
+def _thank_you():
+    oid = request.args.get("order_id","")
+    return Response(f"<h1>Thank you</h1><p>Order: {oid}</p><p>We have recorded your purchase.</p>", mimetype="text/html")
