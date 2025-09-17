@@ -175,3 +175,6 @@ def _site_index():
     return send_from_directory(_BASE, "index.html")
 if "/index.html" not in _rules:
     app.add_url_rule("/index.html", endpoint="_site_index", view_func=_site_index, methods=["GET"])
+@app.get("/buy/nsele-hq")
+def _buy_placeholder():
+    return {"ok":True,"msg":"Buy flow coming soon"}, 200
