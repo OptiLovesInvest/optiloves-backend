@@ -360,3 +360,22 @@ def buy_checkout_alias():
     url = f"{os.environ.get('SELF_BASE_URL','https://optiloves-backend.onrender.com')}/webhooks/payment"
     r = requests.post(url, headers={"x-api-key": want, "Content-Type":"application/json"}, data=request.data, timeout=15)
     return (r.text, r.status_code, {"Content-Type": r.headers.get("Content-Type","application/json")})
+# --- OptiLoves CORS preflight shim (stable, idempotent) ---
+from flask import request, make_response
+
+_ALLOWED_ORIGINS = {'https://optilovesinvest.com', 'https://www.optilovesinvest.com'}
+
+@app.before_request
+def _opt_preflight_204():
+    # Return 204 for CORS preflight on /buy/* and /api/*, echoing allowed origin
+    if request.method == 'OPTIONS' and (request.path.startswith('/buy/') or request.path.startswith('/api/')):
+        origin = request.headers.get('Origin')
+        resp = make_response('', 204)
+        h = resp.headers
+        if origin in _ALLOWED_ORIGINS:
+            h['Access-Control-Allow-Origin'] = origin
+            h['Vary'] = 'Origin'
+        h['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+        h['Access-Control-Allow-Headers'] = 'Content-Type, X-API-Key'
+        return resp
+# --- end shim ---
