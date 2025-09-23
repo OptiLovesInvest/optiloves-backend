@@ -1,4 +1,4 @@
-import hmac
+﻿import hmac
 try:
     from opti_routes import opti_routes
     HAS_OPTI = True
@@ -399,3 +399,34 @@ def _opt_force_options_204(resp):
         pass
     return resp
 # --- end force shim ---
+
+
+# === OPTI CORS START ===
+ALLOWED_ORIGINS = {"https://optilovesinvest.com", "https://www.optilovesinvest.com"}
+
+def _opti_cors_headers():
+    origin = request.headers.get("Origin", "")
+    hdrs = {
+        "Vary": "Origin",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Headers": "x-api-key, content-type",
+    }
+    if origin in ALLOWED_ORIGINS:
+        hdrs["Access-Control-Allow-Origin"] = origin
+    return hdrs
+
+@app.before_request
+def _opti_preflight_short_circuit():
+    # Allow CORS preflight for /api/* and /buy/* WITHOUT auth
+    if request.method == "OPTIONS" and (request.path.startswith("/api/") or request.path.startswith("/buy/")):
+        resp = make_response("", 204)
+        for k, v in _opti_cors_headers().items():
+            resp.headers[k] = v
+        return resp
+
+@app.after_request
+def _opti_add_cors(resp):
+    for k, v in _opti_cors_headers().items():
+        resp.headers.setdefault(k, v)
+    return resp
+# === OPTI CORS END ===
