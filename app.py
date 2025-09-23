@@ -345,3 +345,18 @@ try:
 except Exception as _e:
     pass
 # === END TEMP DIAG ===
+
+# --- alias: buy checkout -> webhooks/payment ---
+from flask import request, jsonify
+import os, requests
+
+@app.post("/buy/checkout")
+def buy_checkout_alias():
+    want = os.environ.get("OPTI_API_KEY")
+    got  = request.headers.get("x-api-key") or request.headers.get("X-Api-Key") or request.headers.get("X-API-KEY")
+    if not want or not got or got != want:
+        return jsonify({"error":"unauthorized"}), 401
+
+    url = f"{os.environ.get('SELF_BASE_URL','https://optiloves-backend.onrender.com')}/webhooks/payment"
+    r = requests.post(url, headers={"x-api-key": want, "Content-Type":"application/json"}, data=request.data, timeout=15)
+    return (r.text, r.status_code, {"Content-Type": r.headers.get("Content-Type","application/json")})
