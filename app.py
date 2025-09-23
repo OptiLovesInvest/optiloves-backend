@@ -345,5 +345,3 @@ try:
 except Exception as _e:
     pass
 # === END TEMP DIAG ===
-
-# DIAG-MARKER 2025-09-23 21:36:00
