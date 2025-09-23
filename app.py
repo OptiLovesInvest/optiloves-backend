@@ -319,3 +319,29 @@ except Exception as __e:
     except Exception:
         pass
 # === END last-resort routes ===
+# === BEGIN TEMP DIAG ===
+try:
+    from flask import request, jsonify
+    import os, hashlib
+    @app.route('/api/diag-auth', methods=['GET'])
+    def api_diag_auth():
+        # server side
+        server_key = os.getenv('OPTI_API_KEY','')
+        server_len = len(server_key)
+        server_sha = hashlib.sha256(server_key.encode('utf-8')).hexdigest() if server_key else ''
+        # client header
+        hdr = request.headers.get('x-api-key') or request.headers.get('X-API-KEY') or request.headers.get('X-Api-Key') or ''
+        hdr_len = len(hdr)
+        hdr_present = bool(hdr_len)
+        # safe boolean only
+        match = (hdr == server_key) and bool(server_key)
+        return jsonify({
+            "server_key_len": server_len,
+            "server_key_sha256": server_sha,
+            "client_header_present": hdr_present,
+            "client_header_len": hdr_len,
+            "match": match
+        }), 200
+except Exception as _e:
+    pass
+# === END TEMP DIAG ===
