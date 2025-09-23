@@ -1,4 +1,7 @@
-﻿import hmac
+﻿if request.method == "OPTIONS":
+    return make_response("", 204)
+
+import hmac
 try:
     from opti_routes import opti_routes
     HAS_OPTI = True
