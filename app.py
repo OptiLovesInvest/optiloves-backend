@@ -12,6 +12,21 @@ from flask import Flask, request, jsonify, redirect
 
 hmac
 app = Flask(__name__)
+
+# === OPTI EARLY PREFLIGHT (runs before any guard) ===
+@app.before_request
+def _opti_early_preflight():
+    if request.method == 'OPTIONS' and (request.path.startswith('/api/') or request.path.startswith('/buy/')):
+        resp = make_response('', 204)
+        origin = request.headers.get('Origin','')
+        if origin in {'https://optilovesinvest.com','https://www.optilovesinvest.com'}:
+            resp.headers['Access-Control-Allow-Origin'] = origin
+        resp.headers['Vary'] = 'Origin'
+        resp.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+        resp.headers['Access-Control-Allow-Headers'] = 'x-api-key, content-type'
+        return resp
+# === END OPTI EARLY PREFLIGHT ===
+
 if HAS_OPTI:
     try:
         app.register_blueprint(opti_routes, url_prefix="/api")
@@ -463,3 +478,16 @@ class OptiPreflightMiddleware:
 
 app = OptiPreflightMiddleware(app)
 
+# === OPTI AFTER CORS ===
+@app.after_request
+def _opti_after_cors(resp):
+    origin = resp.headers.get('Access-Control-Allow-Origin')
+    if not origin:
+        o = request.headers.get('Origin','')
+        if o in {'https://optilovesinvest.com','https://www.optilovesinvest.com'}:
+            resp.headers.setdefault('Access-Control-Allow-Origin', o)
+    resp.headers.setdefault('Vary', 'Origin')
+    resp.headers.setdefault('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    resp.headers.setdefault('Access-Control-Allow-Headers', 'x-api-key, content-type')
+    return resp
+# === END OPTI AFTER CORS ===
