@@ -379,3 +379,23 @@ def _opt_preflight_204():
         h['Access-Control-Allow-Headers'] = 'Content-Type, X-API-Key'
         return resp
 # --- end shim ---
+# --- OptiLoves force 204 on OPTIONS (after_request) ---
+from flask import request
+
+@app.after_request
+def _opt_force_options_204(resp):
+    try:
+        if request.method == 'OPTIONS' and (request.path.startswith('/buy/') or request.path.startswith('/api/')):
+            origin = request.headers.get('Origin')
+            allowed = {'https://optilovesinvest.com','https://www.optilovesinvest.com'}
+            if origin in allowed:
+                resp.headers['Access-Control-Allow-Origin'] = origin
+                resp.headers['Vary'] = 'Origin'
+            resp.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+            resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-API-Key'
+            resp.set_data(b'')
+            resp.status_code = 204
+    except Exception:
+        pass
+    return resp
+# --- end force shim ---
