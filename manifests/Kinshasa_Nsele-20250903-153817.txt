@@ -1,0 +1,7 @@
+Property: Kinshasa Nsele
+Mint: 
+Decimals: 0
+TotalSupply: 1000
+Treasury: 
+Signer: CnyoYEQBgamz3BSRHMdBuQEvt3TnqSwQHZKi6aWXYcyb
+When: 20250903-153817
