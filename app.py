@@ -491,3 +491,117 @@ def _opti_after_cors(resp):
     resp.headers.setdefault('Access-Control-Allow-Headers', 'x-api-key, content-type')
     return resp
 # === END OPTI AFTER CORS ===
+
+import time
+
+
+# === OPTI PORTFOLIO CACHE (WSGI) ===
+class OptiPortfolioCache:
+    def __init__(self, app, ttl_seconds=60):
+        self.app = app
+        self.ttl = ttl_seconds
+        self.cache = {}  # key -> {ts, body, headers}
+
+    def __call__(self, environ, start_response):
+        path = environ.get("PATH_INFO", "")
+        method = environ.get("REQUEST_METHOD", "GET")
+        if method == "GET" and path.startswith("/api/portfolio/"):
+            key = path
+            now = time.time()
+            cached = self.cache.get(key)
+            # Small helper to serve cached
+            def serve_cached():
+                if cached:
+                    status = "200 OK"
+                    headers = [("Content-Type","application/json"), ("Content-Length", str(len(cached["body"])))]
+                    start_response(status, headers)
+                    return [cached["body"]]
+                return None
+
+            # Wrap start_response to inspect status/headers
+            status_holder = {}
+            headers_holder = {}
+            def sr(status, headers, exc_info=None):
+                status_holder["s"] = status
+                headers_holder["h"] = headers
+                return start_response(status, headers, exc_info)
+
+            # Call downstream
+            result = self.app(environ, sr)
+            body = b"".join(result) if isinstance(result, (list, tuple)) else b"".join(list(result))
+
+            # If 429 and we have fresh cache, serve cache instead
+            s = status_holder.get("s","")
+            if s.startswith("429") and cached and (now - cached["ts"]) < self.ttl:
+                return serve_cached() or [body]
+
+            # On 200, store/refresh cache
+            if s.startswith("200"):
+                self.cache[key] = {"ts": now, "body": body, "headers": headers_holder.get("h", [])}
+
+            # Return original response
+            start_response(s, headers_holder.get("h", []))
+            return [body]
+        # Non-portfolio paths
+        return self.app(environ, start_response)
+# === END OPTI PORTFOLIO CACHE ===
+
+app = OptiPortfolioCache(app, ttl_seconds=60)
+
+
+import time
+
+
+# === OPTI PORTFOLIO CACHE (WSGI) ===
+class OptiPortfolioCache:
+    def __init__(self, app, ttl_seconds=60):
+        self.app = app
+        self.ttl = ttl_seconds
+        self.cache = {}  # key -> {ts, body, headers}
+
+    def __call__(self, environ, start_response):
+        path = environ.get("PATH_INFO", "")
+        method = environ.get("REQUEST_METHOD", "GET")
+        if method == "GET" and path.startswith("/api/portfolio/"):
+            key = path
+            now = time.time()
+            cached = self.cache.get(key)
+            # Small helper to serve cached
+            def serve_cached():
+                if cached:
+                    status = "200 OK"
+                    headers = [("Content-Type","application/json"), ("Content-Length", str(len(cached["body"])))]
+                    start_response(status, headers)
+                    return [cached["body"]]
+                return None
+
+            # Wrap start_response to inspect status/headers
+            status_holder = {}
+            headers_holder = {}
+            def sr(status, headers, exc_info=None):
+                status_holder["s"] = status
+                headers_holder["h"] = headers
+                return start_response(status, headers, exc_info)
+
+            # Call downstream
+            result = self.app(environ, sr)
+            body = b"".join(result) if isinstance(result, (list, tuple)) else b"".join(list(result))
+
+            # If 429 and we have fresh cache, serve cache instead
+            s = status_holder.get("s","")
+            if s.startswith("429") and cached and (now - cached["ts"]) < self.ttl:
+                return serve_cached() or [body]
+
+            # On 200, store/refresh cache
+            if s.startswith("200"):
+                self.cache[key] = {"ts": now, "body": body, "headers": headers_holder.get("h", [])}
+
+            # Return original response
+            start_response(s, headers_holder.get("h", []))
+            return [body]
+        # Non-portfolio paths
+        return self.app(environ, start_response)
+# === END OPTI PORTFOLIO CACHE ===
+
+app = OptiPortfolioCache(app, ttl_seconds=60)
+
