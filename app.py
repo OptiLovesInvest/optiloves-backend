@@ -519,3 +519,13 @@ def buy_intent():
 def after_request(resp):
     resp.headers['X-Opti-Version'] = 'buy-stub-20250927-4'
     return resp
+from flask import jsonify  # safe if already imported
+
+@app.route('/__routes', methods=['GET'])
+def __routes():
+    try:
+        rules = [str(r) for r in app.url_map.iter_rules()]
+        return jsonify(ok=True, routes=sorted(rules)), 200
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
+
