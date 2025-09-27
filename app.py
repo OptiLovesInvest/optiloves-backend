@@ -1,4 +1,4 @@
-﻿if request.method == "OPTIONS":
+if request.method == "OPTIONS":
     return make_response("", 204)
 
 import hmac
@@ -491,3 +491,38 @@ def _opti_after_cors(resp):
     resp.headers.setdefault('Access-Control-Allow-Headers', 'x-api-key, content-type')
     return resp
 # === END OPTI AFTER CORS ===
+
+# === OPTI BUY INTENT (public) ===
+@app.route('/buy/intent', methods=['POST','OPTIONS'])
+def opti_buy_intent():
+    # Local OPTIONS fallback (global WSGI also handles)
+    if request.method == 'OPTIONS':
+        return make_response("", 204)
+
+    data = request.get_json(silent=True) or {}
+    prop = (data.get('property_id') or '').strip()
+    try:
+        qty = int(data.get('quantity') or 0)
+    except Exception:
+        qty = 0
+    owner = (data.get('owner') or '').strip()
+
+    missing = [k for k,v in [('property_id',prop),('quantity',qty),('owner',owner)] if not v]
+    if missing:
+        return jsonify(ok=False, error=f"missing: {', '.join(missing)}"), 400
+    if qty <= 0:
+        return jsonify(ok=False, error="quantity must be > 0"), 400
+
+    # Simple static pricing (adjust if you have dynamic pricing)
+    unit_price_usd = 1.50
+    amount_usd = round(unit_price_usd * qty, 2)
+
+    return jsonify(ok=True, intent={
+        'property_id': prop,
+        'quantity': qty,
+        'owner': owner,
+        'unit_price_usd': unit_price_usd,
+        'amount_usd': amount_usd,
+        'currency': 'USD'
+    }), 200
+# === END OPTI BUY INTENT ===
