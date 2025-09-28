@@ -62,3 +62,7 @@ try:
     app.register_blueprint(opti_routes, url_prefix="/api")
 except Exception:
     pass
+
+from routes.buy import buy_bp
+app.register_blueprint(buy_bp, url_prefix='/buy')
+
