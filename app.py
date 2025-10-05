@@ -491,3 +491,5 @@ def _opti_after_cors(resp):
     resp.headers.setdefault('Access-Control-Allow-Headers', 'x-api-key, content-type')
     return resp
 # === END OPTI AFTER CORS ===
+
+# touch: 2025-10-05T17:48:45
