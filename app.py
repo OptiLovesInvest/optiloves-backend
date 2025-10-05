@@ -1,68 +1,92 @@
-﻿from flask import Flask, request, jsonify, make_response
+﻿import time, uuid, sqlite3, os
+from datetime import datetime, timezone
+from flask import Flask, request, jsonify, make_response, redirect
+
+ALLOWED_ORIGINS = {"https://optilovesinvest.com", "https://www.optilovesinvest.com"}
+DB_PATH = os.path.join(os.path.dirname(__file__), "data", "orders.db")
 
 app = Flask(__name__)
 
-# --- health ---
-@app.get("/_health")
-def _health():
-    return jsonify(ok=True), 200
+# -- DB bootstrap -------------------------------------------------------------
+def _db():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.execute("""CREATE TABLE IF NOT EXISTS orders (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        owner TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""")
+    return conn
 
-# --- version header so we can verify deploys ---
+DB = _db()
+
+def create_order(property_id:str, quantity:int, owner:str, status:str="created") -> str:
+    oid = str(uuid.uuid4())
+    ts = datetime.now(timezone.utc).isoformat()
+    DB.execute("INSERT INTO orders(id,property_id,quantity,owner,status,created_at) VALUES(?,?,?,?,?,?)",
+               (oid, property_id, quantity, owner, status, ts))
+    DB.commit()
+    return oid
+
+# -- CORS ---------------------------------------------------------------------
 @app.after_request
-def after_request(resp):
-    resp.headers["X-Opti-Version"] = "buy-stub-20250927-final"
+def _cors(resp):
+    origin = request.headers.get("Origin", "")
+    if origin in ALLOWED_ORIGINS:
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Vary"] = "Origin"
+        resp.headers["Access-Control-Allow-Headers"] = "content-type, x-api-key"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     return resp
 
-# --- early CORS preflight for /api/* and /buy/* (OPTIONS 204) ---
-@app.before_request
-def _early_preflight():
-    if request.method == "OPTIONS" and (request.path.startswith("/api/") or request.path.startswith("/buy/")):
-        resp = make_response("", 204)
-        origin = request.headers.get("Origin", "")
-        # Allow only production origins (your policy)
-        if origin in {"https://optilovesinvest.com", "https://www.optilovesinvest.com"}:
-            resp.headers["Access-Control-Allow-Origin"] = origin
-        resp.headers["Vary"] = "Origin"
-        resp.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-        resp.headers["Access-Control-Allow-Headers"] = "x-api-key, content-type"
-        return resp  # short-circuit preflight
+# -- Health & Ping ------------------------------------------------------------
+@app.route("/_health", methods=["GET"])
+def health():
+    return jsonify(ok=True), 200
 
-# --- debug: list routes (temporary) ---
-@app.get("/__routes")
-def __routes():
-    rules = [str(r) for r in app.url_map.iter_rules()]
-    return jsonify(ok=True, routes=sorted(rules)), 200
+@app.route("/api/ping", methods=["GET","HEAD"])
+@app.route("/api/ping/", methods=["GET","HEAD"])
+def ping():
+    return jsonify(ok=True, ts=int(time.time()*1000)), 200
 
-# --- BUY INTENT (stub) ---
-@app.post("/buy/intent")
-def buy_intent():
-    data = (request.get_json(silent=True) or {})
-    property_id = (data.get("property_id") or "").strip()
-    owner = (data.get("owner") or "").strip()
-    try:
-        quantity = int(data.get("quantity") or 0)
-    except Exception:
-        quantity = 0
-    if not property_id or not owner or quantity < 1:
-        return jsonify(error="invalid_request",
-                       message="property_id, owner, quantity>=1 required"), 400
-    unit_price_usd = 50.00
-    total_usd = unit_price_usd * quantity
-    return jsonify(status="ok",
-                   property_id=property_id,
-                   owner=owner,
-                   quantity=quantity,
-                   unit_price_usd=unit_price_usd,
-                   total_usd=total_usd,
-                   client_secret="test_stub"), 200
+# -- STABLE BUY: works from a static <a href="..."> ---------------------------
+# Example: https://optiloves-backend.onrender.com/buy/quick?property_id=kin-001&quantity=1&owner=69C...XF6B
+@app.route("/buy/quick", methods=["GET"])
+def buy_quick():
+    pid = (request.args.get("property_id") or "").strip()
+    qty = int(request.args.get("quantity") or 1)
+    owner = (request.args.get("owner") or "").strip()
+    if not pid or qty < 1 or not owner:
+        return jsonify(ok=False, error="missing property_id/quantity/owner"), 400
+    oid = create_order(pid, qty, owner)
+    # Redirect back to FE thank-you with the order id for reference
+    thank_you = f"https://optilovesinvest.com/thank-you?oid={oid}"
+    return redirect(thank_you, code=302)
 
-# --- optional: register your existing blueprint safely (won't crash if missing) ---
-try:
-    from opti_routes import opti_routes
-    app.register_blueprint(opti_routes, url_prefix="/api")
-except Exception:
-    pass
+# Existing stubbed checkout (kept)
+@app.route("/buy/checkout", methods=["POST","OPTIONS"])
+def buy_checkout():
+    if request.method == "OPTIONS":
+        return make_response("", 204)
+    _ = request.get_json(silent=True) or {}
+    return jsonify(ok=True, url="https://optilovesinvest.com/thank-you"), 200
 
-from routes.buy import buy_bp
-app.register_blueprint(buy_bp, url_prefix='/buy')
+# -- Orders API (verification) ------------------------------------------------
+@app.route("/api/orders", methods=["GET"])
+def list_orders():
+    cur = DB.execute("SELECT id,property_id,quantity,owner,status,created_at FROM orders ORDER BY created_at DESC LIMIT 50")
+    rows = [dict(zip(["id","property_id","quantity","owner","status","created_at"], r)) for r in cur.fetchall()]
+    return jsonify(ok=True, orders=rows), 200
 
+@app.route("/api/orders/<oid>", methods=["GET"])
+def get_order(oid):
+    cur = DB.execute("SELECT id,property_id,quantity,owner,status,created_at FROM orders WHERE id=?", (oid,))
+    r = cur.fetchone()
+    if not r: return jsonify(ok=False, error="not found"), 404
+    return jsonify(ok=True, order=dict(zip(["id","property_id","quantity","owner","status","created_at"], r))), 200
+
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=5050, debug=False)
