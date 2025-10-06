@@ -90,3 +90,15 @@ def get_order(oid):
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5050, debug=False)
+# ---[opti quick-buy]---
+from uuid import uuid4
+from flask import request, redirect
+
+@app.route("/buy/quick", methods=["GET","POST"])
+def buy_quick():
+    pid = (request.values.get("property_id") or request.values.get("property") or "kin-001").strip()
+    qty = int((request.values.get("quantity") or request.values.get("qty") or 1))
+    oid = str(uuid4())
+    thank = f"https://optilovesinvest.com/thank-you?oid={oid}&property_id={pid}&quantity={qty}"
+    return redirect(thank, code=302)
+# ---[/opti quick-buy]---
