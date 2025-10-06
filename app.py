@@ -102,3 +102,18 @@ def buy_quick():
     thank = f"https://optilovesinvest.com/thank-you?oid={oid}&property_id={pid}&quantity={qty}"
     return redirect(thank, code=302)
 # ---[/opti quick-buy]---
+# ---[OptiLoves permanent quick buy]---
+from flask import request, redirect
+from uuid import uuid4
+
+@app.route("/buy/quick", methods=["GET","POST"])
+def buy_quick():
+    try:
+        pid = (request.values.get("property_id") or request.values.get("property") or "kin-001").strip()
+        qty = int((request.values.get("quantity") or 1))
+    except Exception:
+        pid, qty = "kin-001", 1
+    oid = str(uuid4())
+    url = f"https://optilovesinvest.com/thank-you?oid={oid}&property_id={pid}&quantity={qty}"
+    return redirect(url, code=302)
+# ---[/OptiLoves permanent quick buy]---
