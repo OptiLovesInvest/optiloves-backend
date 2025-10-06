@@ -36,3 +36,10 @@ def buy_quick():
     url = f"https://optilovesinvest.com/thank-you?oid={oid}&property_id={pid}&quantity={qty}"
     return redirect(url, code=302)
 # ---[/OptiLoves permanent quick buy]---
+@app.route("/_routes", methods=["GET"])
+def _routes():
+    try:
+        routes = sorted([str(r) for r in app.url_map.iter_rules()])
+        return jsonify(ok=True, routes=routes), 200
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
