@@ -10,8 +10,7 @@ def _health():
 @app.before_request
 def _handle_options():
     if request.method == "OPTIONS":
-        r = make_response("", 204)
-        return r
+        return make_response("", 204)
 
 @app.after_request
 def _cors(resp):
@@ -24,7 +23,11 @@ def _cors(resp):
         resp.headers["Access-Control-Allow-Headers"] = "content-type,x-api-key"
     return resp
 
-# ---[OptiLoves permanent quick buy]---
+@app.route("/_routes", methods=["GET"])
+def _routes():
+    routes = sorted([str(r) for r in app.url_map.iter_rules()])
+    return jsonify(ok=True, routes=routes), 200
+
 @app.route("/buy/quick", methods=["GET","POST"])
 def buy_quick():
     try:
@@ -35,11 +38,3 @@ def buy_quick():
     oid = str(uuid4())
     url = f"https://optilovesinvest.com/thank-you?oid={oid}&property_id={pid}&quantity={qty}"
     return redirect(url, code=302)
-# ---[/OptiLoves permanent quick buy]---
-@app.route("/_routes", methods=["GET"])
-def _routes():
-    try:
-        routes = sorted([str(r) for r in app.url_map.iter_rules()])
-        return jsonify(ok=True, routes=routes), 200
-    except Exception as e:
-        return jsonify(ok=False, error=str(e)), 500
