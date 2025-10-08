@@ -38,3 +38,14 @@ def buy_quick():
     oid = str(uuid4())
     url = f"https://optilovesinvest.com/thank-you?oid={oid}&property_id={pid}&quantity={qty}"
     return redirect(url, code=302)
+# === OPTILOVES: BUY QUICK STUB START ===
+from flask import request, redirect
+
+@app.route("/buy/quick", methods=["GET"])
+def buy_quick():
+    from uuid import uuid4
+    oid = str(uuid4())
+    # accept params but ignore for stub
+    _ = request.args.get("property_id","kin-001"); _ = request.args.get("quantity","1"); _ = request.args.get("owner","")
+    return redirect(f"https://optilovesinvest.com/thank-you?oid={oid}", code=302)
+# === OPTILOVES: BUY QUICK STUB END ===
