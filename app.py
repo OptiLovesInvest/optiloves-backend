@@ -49,3 +49,26 @@ def buy_quick():
     _ = request.args.get("property_id","kin-001"); _ = request.args.get("quantity","1"); _ = request.args.get("owner","")
     return redirect(f"https://optilovesinvest.com/thank-you?oid={oid}", code=302)
 # === OPTILOVES: BUY QUICK STUB END ===
+# === OPTILOVES: WSGI BUY QUICK MIDDLEWARE START ===
+class _BuyQuickMiddleware:
+    def __init__(self, app):
+        self.app = app
+    def __call__(self, environ, start_response):
+        try:
+            if environ.get("PATH_INFO","") == "/buy/quick":
+                loc = "https://optilovesinvest.com/thank-you?oid=ws"
+                status = "302 Found"
+                headers = [("Location", loc), ("Content-Type", "text/plain")]
+                start_response(status, headers)
+                return [b"Redirecting..."]
+        except Exception:
+            pass
+        return self.app(environ, start_response)
+
+# Wrap once
+try:
+    if not isinstance(app, _BuyQuickMiddleware):
+        app = _BuyQuickMiddleware(app)
+except NameError:
+    pass
+# === OPTILOVES: WSGI BUY QUICK MIDDLEWARE END ===

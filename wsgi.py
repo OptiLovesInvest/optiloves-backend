@@ -11,3 +11,10 @@ def buy_quick():
     _ = request.args.get("property_id","kin-001"); _ = request.args.get("quantity","1"); _ = request.args.get("owner","")
     oid = uuid.uuid4().hex
     return redirect(f"https://optilovesinvest.com/thank-you?oid={oid}", code=302)
+# === OPTILOVES: ensure WSGI wrapper present ===
+try:
+    from app import app, _BuyQuickMiddleware  # reuse the class from app.py
+    if not isinstance(app, _BuyQuickMiddleware):
+        app = _BuyQuickMiddleware(app)
+except Exception:
+    pass
