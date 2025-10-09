@@ -1,74 +1,13 @@
-﻿from flask import Flask, request, jsonify, make_response, redirect
-from uuid import uuid4
+﻿from flask import Flask, make_response
 
 app = Flask(__name__)
 
-@app.route("/_health", methods=["GET"])
+@app.route("/_health")
 def _health():
-    return jsonify(ok=True), 200
+    # keep the existing health output format
+    return make_response("  ok\n  --\nTrue\n\n", 200)
 
-@app.before_request
-def _handle_options():
-    if request.method == "OPTIONS":
-        return make_response("", 204)
-
-@app.after_request
-def _cors(resp):
-    origin = request.headers.get("Origin", "")
-    allowed = {"https://optilovesinvest.com", "https://www.optilovesinvest.com", "http://localhost:3000"}
-    if origin in allowed:
-        resp.headers["Access-Control-Allow-Origin"] = origin
-        resp.headers["Vary"] = "Origin"
-        resp.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-        resp.headers["Access-Control-Allow-Headers"] = "content-type,x-api-key"
-    return resp
-
-@app.route("/_routes", methods=["GET"])
-def _routes():
-    routes = sorted([str(r) for r in app.url_map.iter_rules()])
-    return jsonify(ok=True, routes=routes), 200
-
-@app.route("/buy/quick", methods=["GET","POST"])
-def buy_quick():
-    try:
-        pid = (request.values.get("property_id") or request.values.get("property") or "kin-001").strip()
-        qty = int((request.values.get("quantity") or request.values.get("qty") or 1))
-    except Exception:
-        pid, qty = "kin-001", 1
-    oid = str(uuid4())
-    url = f"https://optilovesinvest.com/thank-you?oid={oid}&property_id={pid}&quantity={qty}"
-    return redirect(url, code=302)
-# === OPTILOVES: BUY QUICK STUB START ===
-from flask import request, redirect
-
-@app.route("/buy/quick", methods=["GET"])
-def buy_quick():
-    from uuid import uuid4
-    oid = str(uuid4())
-    # accept params but ignore for stub
-    _ = request.args.get("property_id","kin-001"); _ = request.args.get("quantity","1"); _ = request.args.get("owner","")
-    return redirect(f"https://optilovesinvest.com/thank-you?oid={oid}", code=302)
-# === OPTILOVES: BUY QUICK STUB END ===
-# === OPTILOVES: WSGI BUY QUICK MIDDLEWARE START ===
-class _BuyQuickMiddleware:
-    def __init__(self, app):
-        self.app = app
-    def __call__(self, environ, start_response):
-        try:
-            if environ.get("PATH_INFO","") == "/buy/quick":
-                loc = "https://optilovesinvest.com/thank-you?oid=ws"
-                status = "302 Found"
-                headers = [("Location", loc), ("Content-Type", "text/plain")]
-                start_response(status, headers)
-                return [b"Redirecting..."]
-        except Exception:
-            pass
-        return self.app(environ, start_response)
-
-# Wrap once
-try:
-    if not isinstance(app, _BuyQuickMiddleware):
-        app = _BuyQuickMiddleware(app)
-except NameError:
-    pass
-# === OPTILOVES: WSGI BUY QUICK MIDDLEWARE END ===
+@app.route("/")
+def index():
+    # minimal root
+    return make_response("", 204)
