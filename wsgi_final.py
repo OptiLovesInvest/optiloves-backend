@@ -364,3 +364,9 @@ class OptiPreflightMiddleware:
 
 app = OptiPreflightMiddleware(app)
 
+from cors_mw import allow_cors
+try:
+    app
+    app = allow_cors(app)
+except NameError:
+    pass
