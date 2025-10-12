@@ -1,39 +1,20 @@
-﻿from typing import Iterable, Callable, Tuple
-
-_ALLOWED = {
-    'https://optilovesinvest.com',
-    'https://www.optilovesinvest.com',
-}
-
-def allow_cors(app, allowed: set = None):
-    allow = allowed or _ALLOWED
-
-    def _mw(environ, start_response):
-        origin = environ.get('HTTP_ORIGIN', '')
-        path   = environ.get('PATH_INFO', '') or ''
-        method = environ.get('REQUEST_METHOD', 'GET').upper()
-
-        # Preflight for our API
-        if method == 'OPTIONS' and path.startswith('/api/'):
-            def _sr(status, headers, exc_info=None):
-                if origin in allow:
-                    headers.append(('Access-Control-Allow-Origin', origin))
-                    headers.append(('Vary', 'Origin'))
-                    headers.append(('Access-Control-Allow-Credentials', 'true'))
-                    headers.append(('Access-Control-Allow-Headers', 'Content-Type, X-API-Key'))
-                    headers.append(('Access-Control-Allow-Methods', 'GET,POST,OPTIONS'))
-                return start_response(status, headers, exc_info)
-            _sr('204 No Content', [])
-            return [b'']
-
-        def _sr(status: str, headers: Iterable[Tuple[str,str]], exc_info=None):
-            headers = list(headers)
-            if origin in allow:
-                headers.append(('Access-Control-Allow-Origin', origin))
-                headers.append(('Vary', 'Origin'))
-                headers.append(('Access-Control-Allow-Credentials', 'true'))
-            return start_response(status, headers, exc_info)
-
-        return app(environ, _sr)
-
+﻿_ALLOWED={'https://optilovesinvest.com','https://www.optilovesinvest.com'}
+def allow_cors(app,allowed=None):
+    allow=allowed or _ALLOWED
+    def _mw(env,start_response):
+        o=env.get('HTTP_ORIGIN',''); p=env.get('PATH_INFO','') or ''; m=(env.get('REQUEST_METHOD','GET') or 'GET').upper()
+        if m=='OPTIONS' and p.startswith('/api/'):
+            def _sr(st,hd,ex=None):
+                if o in allow: hd+= [('Access-Control-Allow-Origin',o),('Vary','Origin'),
+                    ('Access-Control-Allow-Credentials','true'),
+                    ('Access-Control-Allow-Headers','Content-Type, X-API-Key'),
+                    ('Access-Control-Allow-Methods','GET,POST,OPTIONS')]
+                return start_response(st,hd,ex)
+            _sr('204 No Content',[]); return [b'']
+        def _sr(st,hd,ex=None):
+            hd=list(hd)
+            if o in allow: hd+= [('Access-Control-Allow-Origin',o),('Vary','Origin'),
+                ('Access-Control-Allow-Credentials','true')]
+            return start_response(st,hd,ex)
+        return app(env,_sr)
     return _mw
