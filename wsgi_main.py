@@ -63,3 +63,10 @@ except Exception as _e:
     pass
 # === /OPTILOVES: BUY QUICK STUB ===
 
+# --- OptiFixer route ---
+try:
+    from ai_optifix import bp as _optifix_bp
+    app.register_blueprint(_optifix_bp)
+except Exception as _e:
+    pass
+# --- /OptiFixer route ---
