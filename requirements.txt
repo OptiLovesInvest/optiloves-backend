@@ -6,5 +6,4 @@ flask-cors
 requests
 psycopg2-binary>=2.9
 
-stripe>=5,<7
 stripe==10.12.0
