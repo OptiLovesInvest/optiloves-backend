@@ -1,4 +1,4 @@
-﻿from flask import Flask, make_response
+from flask import Flask, make_response
 app = Flask(__name__)
 
 @app.route("/_health")
@@ -47,16 +47,17 @@ import os
 
 @app.get("/buy/checkout")
 def buy_checkout():
-    # Optional API key check (only enforced if OPTILOVES_API_KEY is set)
-    expected = os.getenv("OPTILOVES_API_KEY")
-    if expected:
-        got = request.headers.get("x-api-key", "")
-        if got != expected:
-            return jsonify(ok=False, error="unauthorized"), 401
+    """
+    Creates a Stripe Checkout Session and returns { ok:true, url }.
+    Safe fallback: if Stripe is not configured, return thank-you URL.
+    """
+    import os
+    from flask import request, jsonify
 
-    raw_qty = request.args.get("qty", "1")
+    # qty from querystring
+    raw = request.args.get("qty", "1")
     try:
-        qty = int(raw_qty)
+        qty = int(raw)
     except Exception:
         qty = 1
     if qty < 1:
@@ -64,5 +65,30 @@ def buy_checkout():
     if qty > 100:
         qty = 100
 
-    return jsonify(ok=True, url="https://optilovesinvest.com/thank-you", qty=qty)
-# --- END BUY CHECKOUT ---
+    # Required env vars
+    stripe_secret = os.getenv("STRIPE_SECRET_KEY", "").strip()
+    price_id = os.getenv("STRIPE_PRICE_ID", "").strip()
+    success_url = os.getenv("STRIPE_SUCCESS_URL", "https://optilovesinvest.com/thank-you").strip()
+    cancel_url = os.getenv("STRIPE_CANCEL_URL", "https://optilovesinvest.com/buy").strip()
+
+    # If Stripe not configured, do not break the site
+    if not stripe_secret or not price_id:
+        return jsonify(ok=True, qty=qty, url=success_url, mode="fallback")
+
+    try:
+        import stripe
+        stripe.api_key = stripe_secret
+
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            line_items=[{"price": price_id, "quantity": qty}],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={"propertyId": "kin-001", "quantity": str(qty)},
+        )
+
+        return jsonify(ok=True, qty=qty, url=session.url, sessionId=session.id, mode="stripe")
+
+    except Exception as e:
+        # Safety: never expose secrets; return minimal error
+        return jsonify(ok=False, error="checkout_failed", detail=str(e)[:200]), 500
