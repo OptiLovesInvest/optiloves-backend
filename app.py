@@ -92,3 +92,38 @@ def buy_checkout():
     except Exception as e:
         # Safety: never expose secrets; return minimal error
         return jsonify(ok=False, error="checkout_failed", detail=str(e)[:200]), 500
+
+
+# --- Optiloves Invest: Apply endpoint (api-key guarded) ---
+from flask import request, jsonify
+import os
+
+def _opti_expected_api_key():
+    return os.getenv("OPTI_API_KEY") or os.getenv("API_KEY") or os.getenv("OPTILOVES_API_KEY")
+
+def _opti_require_api_key():
+    expected = _opti_expected_api_key()
+    if not expected:
+        return jsonify({"ok": False, "error": "Server missing OPTI_API_KEY"}), 500
+    got = request.headers.get("x-api-key", "")
+    if (not got) or (got != expected):
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    return None
+
+@app.post("/api/apply")
+def api_apply():
+    gate = _opti_require_api_key()
+    if gate: return gate
+
+    body = request.get_json(silent=True) or {}
+    amt_raw = body.get("amount", body.get("allocation", body.get("amount_usd", 0)))
+
+    try:
+        amount = float(amt_raw)
+    except Exception:
+        return jsonify({"ok": False, "error": "Invalid amount"}), 400
+
+    if amount < 100 or amount > 1000:
+        return jsonify({"ok": False, "error": "Amount must be between 100 and 1000"}), 400
+
+    return jsonify({"ok": True})
