@@ -161,3 +161,96 @@ def _portfolio(owner: str):
 # === END OPTILOVES PORTFOLIO FIX ===
 
 
+
+# === OPTILOVES PORTFOLIO ROUTES ===
+import urllib.request
+from collections import defaultdict
+
+RPC = os.environ.get("SOLANA_RPC", "https://api.mainnet-beta.solana.com")
+MINTS = [m.strip() for m in os.environ.get("OPTILOVES_MINTS","").split(",") if m.strip()]
+TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+
+def _rpc(method, params):
+    body = json.dumps({"jsonrpc":"2.0","id":1,"method":method,"params":params}).encode()
+    req = urllib.request.Request(RPC, data=body, headers={"Content-Type":"application/json"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read().decode())
+
+def _portfolio(owner: str):
+    owner = (owner or "").strip()
+    items = []
+
+    if MINTS:
+        for mint in MINTS:
+            try:
+                res = _rpc("getTokenAccountsByOwner", [owner, {"mint": mint}, {"encoding":"jsonParsed"}])
+                bal = 0.0
+                for it in res.get("result", {}).get("value", []):
+                    try:
+                        info = it["account"]["data"]["parsed"]["info"]
+                        amt = info["tokenAmount"]["uiAmount"] or 0
+                        bal += float(amt)
+                    except Exception:
+                        pass
+                if bal > 0:
+                    items.append({
+                        "mint": mint,
+                        "balance": bal,
+                        "price": 50,
+                        "estValue": bal * 50
+                    })
+            except Exception as e:
+                items.append({
+                    "mint": mint,
+                    "balance": 0.0,
+                    "price": 50,
+                    "estValue": 0.0,
+                    "error": str(e)[:140]
+                })
+    else:
+        try:
+            res = _rpc("getTokenAccountsByOwner", [owner, {"programId": TOKEN_PROGRAM}, {"encoding":"jsonParsed"}])
+            by_mint = defaultdict(float)
+            for it in res.get("result", {}).get("value", []):
+                try:
+                    info = it["account"]["data"]["parsed"]["info"]
+                    mint = info.get("mint")
+                    amt = info["tokenAmount"]["uiAmount"] or 0
+                    by_mint[mint] += float(amt)
+                except Exception:
+                    pass
+            items = [{
+                "mint": m,
+                "balance": a,
+                "price": 50,
+                "estValue": a * 50
+            } for m, a in by_mint.items() if a > 0]
+        except Exception as e:
+            items = [{
+                "mint": "unknown",
+                "balance": 0.0,
+                "price": 50,
+                "estValue": 0.0,
+                "error": str(e)[:160]
+            }]
+
+    total = sum(i.get("balance", 0.0) for i in items)
+    return {"ok": True, "owner": owner, "items": items, "total": total, "source": "app_portfolio_v1"}
+
+@app.route("/api/portfolio/<owner>", methods=["GET"])
+def portfolio_owner(owner):
+    _opti_require_api_key()
+    owner = (owner or "").strip()
+    if not owner:
+        return jsonify({"ok": False, "error": "missing owner"}), 400
+    return jsonify(_portfolio(owner)), 200
+
+@app.route("/api/portfolio", methods=["GET"])
+def portfolio_query():
+    _opti_require_api_key()
+    owner = (request.args.get("owner","") or "").strip()
+    if not owner:
+        return jsonify({"ok": False, "error": "missing owner"}), 400
+    return jsonify(_portfolio(owner)), 200
+# === END OPTILOVES PORTFOLIO ROUTES ===
+
