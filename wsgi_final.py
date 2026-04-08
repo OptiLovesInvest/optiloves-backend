@@ -38,34 +38,75 @@ def _rpc(method, params):
 def _portfolio(owner: str):
     owner = (owner or "").strip()
     items = []
+
     if MINTS:
         for mint in MINTS:
             try:
-                res = _rpc("getTokenAccountsByOwner", [owner, {"mint": mint}, {"encoding":"jsonParsed"}])
+                res = _rpc("getTokenAccountsByOwner", [owner, {"mint": mint}, {"encoding": "jsonParsed"}])
                 bal = 0.0
                 for it in res.get("result", {}).get("value", []):
                     try:
-                        amt = it["account"]["data"]["parsed"]["info"]["tokenAmount"]["uiAmount"]
+                        info = it.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
+                        token_amount = info.get("tokenAmount", {})
+                        amt = token_amount.get("uiAmount")
+                        if amt is None:
+                            amt = float(token_amount.get("uiAmountString", "0") or 0)
                         bal += float(amt or 0)
-                    except Exception: pass
-                items.append({"mint": mint, "amount": bal})
+                    except Exception:
+                        pass
+
+                if bal > 0:
+                    items.append({
+                        "propertyId": mint,
+                        "mint": mint,
+                        "balance": bal,
+                        "price": 50,
+                        "estValue": bal * 50
+                    })
             except Exception as e:
-                items.append({"mint": mint, "amount": 0.0, "error": str(e)[:140]})
+                items.append({
+                    "propertyId": mint,
+                    "mint": mint,
+                    "balance": 0.0,
+                    "price": 50,
+                    "estValue": 0.0,
+                    "error": str(e)[:140]
+                })
     else:
         try:
-            res = _rpc("getTokenAccountsByOwner", [owner, {"programId": TOKEN_PROGRAM}, {"encoding":"jsonParsed"}])
+            res = _rpc("getTokenAccountsByOwner", [owner, {"programId": TOKEN_PROGRAM}, {"encoding": "jsonParsed"}])
             by_mint = defaultdict(float)
             for it in res.get("result", {}).get("value", []):
                 try:
-                    info = it["account"]["data"]["parsed"]["info"]
-                    mint = info.get("mint"); amt = info["tokenAmount"]["uiAmount"] or 0
-                    by_mint[mint] += float(amt)
-                except Exception: pass
-            items = [{"mint": m, "amount": a} for m, a in by_mint.items()]
+                    info = it.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
+                    mint = info.get("mint")
+                    token_amount = info.get("tokenAmount", {})
+                    amt = token_amount.get("uiAmount")
+                    if amt is None:
+                        amt = float(token_amount.get("uiAmountString", "0") or 0)
+                    by_mint[mint] += float(amt or 0)
+                except Exception:
+                    pass
+
+            items = [{
+                "propertyId": m,
+                "mint": m,
+                "balance": a,
+                "price": 50,
+                "estValue": a * 50
+            } for m, a in by_mint.items() if a > 0]
         except Exception as e:
-            items = [{"mint": "unknown", "amount": 0.0, "error": str(e)[:160]}]
-    total = sum(i.get("amount", 0.0) for i in items)
-    return {"owner": owner, "items": items, "total": total, "source": "wsgi_final_v3"}
+            items = [{
+                "propertyId": "unknown",
+                "mint": "unknown",
+                "balance": 0.0,
+                "price": 50,
+                "estValue": 0.0,
+                "error": str(e)[:160]
+            }]
+
+    total = sum(i.get("balance", 0.0) for i in items)
+    return {"owner": owner, "items": items, "total": total, "source": "wsgi_final_v4"}
 
 @app.get("/api/portfolio/<owner>")
 def _pf_owner(owner): return jsonify(_portfolio(owner)), 200
@@ -370,3 +411,4 @@ try:
     app = allow_cors(app)
 except NameError:
     pass
+
