@@ -348,6 +348,10 @@ def whoami():
 def get_db():
     return psycopg2.connect(os.environ.get("PG_DSN"))
 
+
+def get_db():
+    return psycopg2.connect(os.environ.get("PG_DSN"))
+
 @app.route("/admin/payouts/<quarter>/approve", methods=["POST"])
 def payout_approve(quarter):
     if request.headers.get("x-api-key") != os.environ.get("API_KEY"):
