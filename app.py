@@ -336,6 +336,18 @@ def payout_preview(quarter):
 def get_db():
     return psycopg2.connect(os.environ.get("PG_DSN"))
 
+@app.route('/_whoami')
+def whoami():
+    import os
+    return {
+        "file": __file__,
+        "cwd": os.getcwd()
+    }
+
+
+def get_db():
+    return psycopg2.connect(os.environ.get("PG_DSN"))
+
 @app.route("/admin/payouts/<quarter>/approve", methods=["POST"])
 def payout_approve(quarter):
     if request.headers.get("x-api-key") != os.environ.get("API_KEY"):
@@ -528,10 +540,3 @@ def payout_report(quarter):
         if conn:
             conn.close()
 
-@app.route('/_whoami')
-def whoami():
-    import os
-    return {
-        "file": __file__,
-        "cwd": os.getcwd()
-    }
