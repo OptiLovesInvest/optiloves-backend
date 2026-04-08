@@ -1,4 +1,5 @@
-﻿from flask import Flask, make_response
+from decimal import Decimal, ROUND_HALF_UP
+from flask import Flask, make_response
 app = Flask(__name__)
 
 @app.route("/_health")
@@ -254,3 +255,74 @@ def portfolio_query():
     return jsonify(_portfolio(owner)), 200
 # === END OPTILOVES PORTFOLIO ROUTES ===
 
+
+MINT = "5ihsE55yaFFZXoizZKv5xsd6YjEuvaXiiMr2FLjQztN9"
+RATE = Decimal("1.50")
+
+def calculate_payout(tokens_held: int) -> Decimal:
+    return (Decimal(tokens_held) * RATE).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+
+@app.route("/admin/payouts/<quarter>/preview", methods=["GET"])
+def payout_preview(quarter):
+    if request.headers.get("x-api-key") != os.environ.get("API_KEY"):
+        return jsonify({"error": "unauthorized"}), 401
+
+    rpc_url = os.environ.get("SOLANA_RPC", "https://api.mainnet-beta.solana.com")
+    known_wallets = [
+        w.strip() for w in os.environ.get("KNOWN_WALLETS", "").split(",") if w.strip()
+    ]
+
+    line_items = []
+    total_tokens = 0
+    total_usdc = Decimal("0.00")
+
+    for wallet in known_wallets:
+        try:
+            resp = requests.post(rpc_url, json={
+                "jsonrpc": "2.0", "id": 1,
+                "method": "getTokenAccountsByOwner",
+                "params": [
+                    wallet,
+                    {"mint": MINT},
+                    {"encoding": "jsonParsed"}
+                ]
+            }, timeout=10)
+
+            if resp.status_code != 200:
+                raise Exception(f"RPC error {resp.status_code}")
+
+            data = resp.json()
+            accounts = data.get("result", {}).get("value", [])
+            balance = 0
+
+            for acc in accounts:
+                amount = acc["account"]["data"]["parsed"]["info"]["tokenAmount"]["amount"]
+                balance += int(amount or 0)
+
+            usdc = calculate_payout(balance)
+            total_tokens += balance
+            total_usdc += usdc
+
+            line_items.append({
+                "wallet": wallet,
+                "mint": MINT,
+                "tokens_held": balance,
+                "usdc_amount": str(usdc)
+            })
+
+        except Exception as e:
+            line_items.append({
+                "wallet": wallet,
+                "error": str(e)
+            })
+
+    return jsonify({
+        "quarter": quarter,
+        "total_wallets": len(line_items),
+        "total_tokens": total_tokens,
+        "total_usdc": str(total_usdc),
+        "line_items": line_items,
+        "status": "preview_only"
+    })
