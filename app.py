@@ -25,19 +25,6 @@ def opti_ping():
     _opti_require_api_key()
     return jsonify(ok=True, service="optiloves-backend", ts=int(__import__("time").time()*1000))
 
-@app.route("/api/portfolio", methods=["GET"])
-def opti_portfolio_qs():
-    _opti_require_api_key()
-    owner = request.args.get("owner","").strip()
-    if not owner: return jsonify(ok=False, error="missing owner"), 400
-    # If your real handler exists, call it here instead:
-    # return real_portfolio_handler(owner)
-    return jsonify(ok=True, owner=owner, items=[])
-
-@app.route("/api/portfolio/<owner>", methods=["GET"])
-def opti_portfolio_path(owner):
-    _opti_require_api_key()
-    owner = (owner or "").strip()
     if not owner: return jsonify(ok=False, error="missing owner"), 400
     return jsonify(ok=True, owner=owner, items=[])
 # --- OPTI: end minimal diagnostics ---
