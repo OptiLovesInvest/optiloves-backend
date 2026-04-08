@@ -1,4 +1,5 @@
-﻿from app import app as application
+﻿from wsgi_final import _portfolio
+from app import app as application
 app = application
 
 # --- debug + portfolio routes defined at entrypoint (bulletproof) ---
@@ -11,17 +12,17 @@ def _routes():
 
 @app.get("/api/portfolio/<owner>")
 def _wm_portfolio_owner(owner):
-    owner=(owner or "").strip()
+    owner = (owner or "").strip()
     if not owner:
-        return jsonify({"owner":"", "items":[], "total":0, "source":"wsgi_main"}), 200
-    return jsonify({"owner":owner, "items":[], "total":0, "source":"wsgi_main"}), 200
+        return jsonify({"error":"missing owner"}), 400
+    return jsonify(_portfolio(owner)), 200
 
 @app.get("/api/portfolio")
 def _wm_portfolio_query():
-    owner=(request.args.get("owner","") or "").strip()
+    owner = (request.args.get("owner","") or "").strip()
     if not owner:
         return jsonify({"error":"missing owner"}), 400
-    return jsonify({"owner":owner, "items":[], "total":0, "source":"wsgi_main"}), 200
+    return jsonify(_portfolio(owner)), 200
 
 # === OPTI GLOBAL PREFLIGHT (inserted) ===
 ALLOWED_ORIGINS = {"https://optilovesinvest.com", "https://www.optilovesinvest.com"}
@@ -70,3 +71,4 @@ try:
 except Exception as _e:
     pass
 # --- /OptiFixer route ---
+
