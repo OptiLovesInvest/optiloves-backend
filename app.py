@@ -1,4 +1,4 @@
-from flask import Flask, make_response
+﻿from flask import Flask, make_response
 app = Flask(__name__)
 
 @app.route("/_health")
@@ -10,6 +10,8 @@ def index():
     return make_response("", 204)
 # --- OPTI: begin minimal diagnostics (safe, reversible) ---
 import os, json
+import urllib.request
+from collections import defaultdict
 from flask import request, jsonify, abort
 
 def _opti_require_api_key():
@@ -127,3 +129,48 @@ def api_apply():
         return jsonify({"ok": False, "error": "Amount must be between 100 and 1000"}), 400
 
     return jsonify({"ok": True})
+
+
+# === OPTILOVES PORTFOLIO FIX ===
+RPC = os.environ.get("SOLANA_RPC", "https://api.mainnet-beta.solana.com")
+MINTS = [m.strip() for m in os.environ.get("OPTILOVES_MINTS","").split(",") if m.strip()]
+TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+
+def _rpc(method, params):
+    body = json.dumps({"jsonrpc":"2.0","id":1,"method":method,"params":params}).encode()
+    req  = urllib.request.Request(RPC, data=body, headers={"Content-Type":"application/json"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read().decode())
+
+def _portfolio(owner: str):
+    owner = (owner or "").strip()
+    items = []
+
+    if MINTS:
+        for mint in MINTS:
+            try:
+                res = _rpc("getTokenAccountsByOwner", [owner, {"mint": mint}, {"encoding":"jsonParsed"}])
+                bal = 0.0
+                for it in res.get("result", {}).get("value", []):
+                    try:
+                        info = it["account"]["data"]["parsed"]["info"]
+                        amt = info["tokenAmount"]["uiAmount"] or 0
+                        bal += float(amt)
+                    except Exception:
+                        pass
+
+                if bal > 0:
+                    items.append({
+                        "mint": mint,
+                        "balance": bal,
+                        "price": 50,
+                        "estValue": bal * 50
+                    })
+            except Exception:
+                pass
+
+    total = sum(i["balance"] for i in items)
+    return {"owner": owner, "items": items, "total": total}
+# === END OPTILOVES PORTFOLIO FIX ===
+
+
