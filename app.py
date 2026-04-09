@@ -544,3 +544,62 @@ def payout_report(quarter):
         if conn:
             conn.close()
 
+
+@app.route("/api/payout-history/<wallet>", methods=["GET"])
+def payout_history(wallet):
+    conn = None
+    cur = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT
+                pr.quarter,
+                pr.status AS run_status,
+                pr.approved_at,
+                pli.tokens_held,
+                pli.usdc_amount,
+                pli.status AS payout_status,
+                pli.tx_signature,
+                pli.updated_at
+            FROM payout_line_items pli
+            JOIN payout_runs pr ON pli.payout_run_id = pr.id
+            WHERE pli.wallet_address = %s
+            ORDER BY pr.approved_at DESC
+        """, (wallet,))
+
+        rows = cur.fetchall()
+
+        history = []
+        for r in rows:
+            history.append({
+                "quarter": r[0],
+                "run_status": r[1],
+                "approved_at": str(r[2]) if r[2] else None,
+                "tokens_held": r[3],
+                "usdc_amount": str(r[4]),
+                "payout_status": r[5],
+                "tx_signature": r[6],
+                "updated_at": str(r[7]) if r[7] else None,
+                "explorer_url": f"https://solscan.io/tx/{r[6]}" if r[6] else None
+            })
+
+        return jsonify({
+            "wallet": wallet,
+            "history": history,
+            "total_paid": str(sum(
+                float(r["usdc_amount"]) for r in history
+                if r["payout_status"] == "sent"
+            ))
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
